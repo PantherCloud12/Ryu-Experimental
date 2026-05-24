@@ -16,25 +16,37 @@ dbHelper.load();
 
 // Map and Loader for Plugins
 const plugins = {};
+function readDirectoryRecursive(dir) {
+    let files = [];
+    if (!fs.existsSync(dir)) return files;
+    const list = fs.readdirSync(dir, { withFileTypes: true });
+    for (const item of list) {
+        const fullPath = path.join(dir, item.name);
+        if (item.isDirectory()) {
+            files = files.concat(readDirectoryRecursive(fullPath));
+        } else if (item.isFile() && item.name.endsWith('.js')) {
+            files.push(fullPath);
+        }
+    }
+    return files;
+}
+
 function loadPlugins() {
     const pluginsDir = path.join(__dirname, 'plugins');
     if (!fs.existsSync(pluginsDir)) {
         fs.mkdirSync(pluginsDir);
     }
     
-    const files = fs.readdirSync(pluginsDir);
+    const files = readDirectoryRecursive(pluginsDir);
     for (const file of files) {
-        if (file.endsWith('.js')) {
-            try {
-                const pluginPath = path.join(pluginsDir, file);
-                delete require.cache[require.resolve(pluginPath)];
-                const plugin = require(pluginPath);
-                if (plugin.name && typeof plugin.execute === 'function') {
-                    plugins[plugin.name] = plugin;
-                }
-            } catch (err) {
-                console.error(`Gagal memuat plugin ${file}:`, err);
+        try {
+            delete require.cache[require.resolve(file)];
+            const plugin = require(file);
+            if (plugin.name && typeof plugin.execute === 'function') {
+                plugins[plugin.name] = plugin;
             }
+        } catch (err) {
+            console.error(`Gagal memuat plugin ${file}:`, err);
         }
     }
     console.log(`✅ Berhasil memuat ${Object.keys(plugins).length} plugin.`);
@@ -194,7 +206,7 @@ async function startBot() {
 
     sock.ev.on('messages.upsert', async (m) => {
         const msg = m.messages[0];
-        if (!msg.message || msg.key.fromMe) return;
+        if (!msg.message) return;
 
         const remoteJid = msg.key.remoteJid;
         const isGroup = remoteJid.endsWith('@g.us');
@@ -204,6 +216,9 @@ async function startBot() {
         const extendedText = msg.message.extendedTextMessage?.text;
         const text = conversation || extendedText || "";
         
+        const prefix = '.';
+        if (msg.key.fromMe && !text.startsWith(prefix)) return;
+
         const sender = isGroup ? (msg.key.participant || "") : remoteJid;
 
         // Anti-link validation
@@ -242,7 +257,6 @@ async function startBot() {
         }
 
         // Prefix check (default '.')
-        const prefix = '.';
         if (!text.startsWith(prefix)) return;
 
         const parts = text.slice(prefix.length).trim().split(/\s+/);
