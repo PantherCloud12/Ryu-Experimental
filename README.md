@@ -29,13 +29,28 @@ Bot ini dirancang khusus untuk memisahkan setiap perintah ke dalam file tersendi
 ### 📱 Instalasi di Termux (Android)
 
 1. Pastikan Anda sudah mengunduh dan menginstall Termux.
-2. Jalankan perintah berikut secara berurutan:
+2. Jalankan update & upgrade package:
    ```bash
    pkg update && pkg upgrade -y
+   ```
+3. Install Node.js dan Git:
+   ```bash
    pkg install nodejs git -y
+   ```
+4. Clone repositori bot:
+   ```bash
    git clone https://github.com/PantherCloud12/Ryu-Experimental.git
+   ```
+5. Masuk ke folder proyek:
+   ```bash
    cd Ryu-Experimental
+   ```
+6. Install library / dependensi:
+   ```bash
    npm install
+   ```
+7. Jalankan bot:
+   ```bash
    npm start
    ```
 
