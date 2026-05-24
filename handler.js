@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const dbHelper = require('./lib/db');
+const config = require('./config');
 
 // Cache metadata group
 const groupCache = new Map();
@@ -28,14 +29,17 @@ module.exports = async (sock, m) => {
     const extendedText = msg.message.extendedTextMessage?.text;
     const text = conversation || extendedText || "";
     
-    const prefix = '.';
+    const prefix = config.prefix || '.';
     if (msg.key.fromMe && !text.startsWith(prefix)) return;
 
     const sender = isGroup ? (msg.key.participant || "") : remoteJid;
+    const isOwner = config.owner.includes(sender);
 
-    // Anti-link validation
+    // Anti-link and Anti-SWGC validation
     if (isGroup) {
         const chatDb = dbHelper.getChat(remoteJid);
+        
+        // 1. Anti-Link
         if (chatDb.antilink) {
             const linkPattern = /chat\.whatsapp\.com\/[a-zA-Z0-9]{20,26}/i;
             if (linkPattern.test(text)) {
@@ -43,7 +47,7 @@ module.exports = async (sock, m) => {
                 if (meta) {
                     const admins = meta.participants.filter(p => p.admin !== null).map(p => p.id);
                     const isAdmin = admins.includes(sender);
-                    if (!isAdmin) {
+                    if (!isAdmin && !isOwner) {
                         // Hapus pesan
                         await sock.sendMessage(remoteJid, { delete: msg.key });
                         
@@ -60,7 +64,40 @@ module.exports = async (sock, m) => {
                         } else {
                             await sock.sendMessage(remoteJid, { text: '❌ Gagal mengeluarkan member karena bot bukan admin.' });
                         }
-                        return; // Stop processing plugins
+                        return; // Stop processing
+                    }
+                }
+            }
+        }
+
+        // 2. Anti-SWGC
+        if (chatDb.antiswgc) {
+            const isInvite = msg.message?.groupInviteMessage || msg.message?.extendedTextMessage?.contextInfo?.quotedMessage?.groupInviteMessage;
+            const isStatusMsg = msg.message?.groupStatusMessageV2 || msg.message?.extendedTextMessage?.contextInfo?.quotedMessage?.groupStatusMessageV2;
+            
+            if (isInvite || isStatusMsg) {
+                const meta = await getGroupMetadata(sock, remoteJid);
+                if (meta) {
+                    const admins = meta.participants.filter(p => p.admin !== null).map(p => p.id);
+                    const isAdmin = admins.includes(sender);
+                    if (!isAdmin && !isOwner) {
+                        // Hapus pesan
+                        await sock.sendMessage(remoteJid, { delete: msg.key });
+                        
+                        // Info & Kick
+                        await sock.sendMessage(remoteJid, { 
+                            text: `⚠️ *Anti SWGC Terdeteksi!*\n\nMember @${sender.split('@')[0]} mengirimkan postingan status/undangan grup (SWGC). Pesan telah dihapus dan member akan dikeluarkan dari grup.`, 
+                            mentions: [sender] 
+                        });
+
+                        const botJid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
+                        const isBotAdmin = admins.includes(botJid);
+                        if (isBotAdmin) {
+                            await sock.groupParticipantsUpdate(remoteJid, [sender], 'remove');
+                        } else {
+                            await sock.sendMessage(remoteJid, { text: '❌ Gagal mengeluarkan member karena bot bukan admin.' });
+                        }
+                        return; // Stop processing
                     }
                 }
             }
@@ -103,11 +140,15 @@ module.exports = async (sock, m) => {
         }
 
         // Command validation checks
+        if (plugin.isOwner && !isOwner) {
+            return await sock.sendMessage(remoteJid, { text: `❌ *Akses Ditolak!*\n\n⚠️ Command ini hanya untuk Owner Bot!${config.PROMO_TEXT}` });
+        }
+
         if (plugin.isGroup && !isGroup) {
             return await sock.sendMessage(remoteJid, { text: '❌ Fitur ini hanya dapat digunakan di dalam grup!' });
         }
 
-        if (plugin.isAdmin && !isAdmin) {
+        if (plugin.isAdmin && !isAdmin && !isOwner) {
             return await sock.sendMessage(remoteJid, { text: '❌ Perintah ini hanya dapat dijalankan oleh admin grup!' });
         }
 
@@ -134,6 +175,8 @@ module.exports = async (sock, m) => {
             admins,
             isAdmin,
             isBotAdmin,
+            isOwner,
+            config,
             mentionedJid,
             quotedMsg,
             quotedSender,

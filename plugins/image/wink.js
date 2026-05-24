@@ -390,7 +390,7 @@ async function enhanceImageWink(imagePath) {
     const firstMsgId = task.msg_id || task.prepare_msg_id;
 
     if (!firstMsgId) {
-        throw new Error(`delivery tidak mengembalikan msg_id`);
+        throw new Error("delivery tidak mengembalikan msg_id");
     }
 
     return await waitResult(firstMsgId);
