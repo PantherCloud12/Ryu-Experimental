@@ -16,8 +16,8 @@ module.exports = {
 
         try {
             await sock.sendMessage(from, { text: '⏳ Mengambil gambar anime...' }, { quoted: m });
-            const res = await axios.get('https://api.waifu.pics/sfw/waifu');
-            const imgUrl = res.data.url;
+            const res = await axios.get('https://nekos.best/api/v2/waifu');
+            const imgUrl = res.data.results[0].url;
             await sock.sendMessage(from, { 
                 image: { url: imgUrl }, 
                 caption: `🌸 *WAIFU RANDOM PIC*\n\nEnjoy your waifu!\n${PROMO_TEXT}` 

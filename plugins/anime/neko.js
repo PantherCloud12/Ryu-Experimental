@@ -16,11 +16,11 @@ module.exports = {
 
         try {
             await sock.sendMessage(from, { text: '⏳ Mengambil gambar anime...' }, { quoted: m });
-            const res = await axios.get('https://api.waifu.pics/sfw/neko');
-            const imgUrl = res.data.url;
+            const res = await axios.get('https://nekos.best/api/v2/neko');
+            const imgUrl = res.data.results[0].url;
             await sock.sendMessage(from, { 
                 image: { url: imgUrl }, 
-                caption: `🌸 *NEKO RANDOM PIC*\n\nEnjoy your waifu!\n${PROMO_TEXT}` 
+                caption: `🌸 *NEKO RANDOM PIC*\n\nEnjoy your neko!\n${PROMO_TEXT}` 
             }, { quoted: m });
         } catch (err) {
             await sock.sendMessage(from, { text: `❌ Gagal: ${err.message}` }, { quoted: m });

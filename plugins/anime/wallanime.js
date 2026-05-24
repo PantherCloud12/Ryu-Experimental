@@ -16,8 +16,10 @@ module.exports = {
 
         try {
             await sock.sendMessage(from, { text: '⏳ Mengambil gambar anime...' }, { quoted: m });
+            const res = await axios.get('https://nekos.life/api/v2/img/wallpaper');
+            const imgUrl = res.data.url;
             await sock.sendMessage(from, { 
-                image: { url: 'https://api.vreden.web.id/api/wallpaper' }, 
+                image: { url: imgUrl }, 
                 caption: `🌸 *WALLANIME RANDOM PIC*\n\nEnjoy!\n${PROMO_TEXT}` 
             }, { quoted: m });
         } catch (err) {

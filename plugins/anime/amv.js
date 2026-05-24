@@ -1,49 +1,87 @@
-// Auto-generated plugin for Category: anime
-// Command: amv
-const axios = require('axios');
+const { exec } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+
+function execPromise(cmd) {
+    return new Promise((resolve, reject) => {
+        exec(cmd, (err, stdout, stderr) => {
+            if (err) reject(err);
+            else resolve({ stdout, stderr });
+        });
+    });
+}
 
 module.exports = {
     name: 'amv',
-    command: ["videomuted-anime","animemusicvideo"],
+    command: ["videomuted-anime","animemusicvideo","amv"],
     category: 'anime',
-    description: 'Mendapatkan video AMV (Anime Music Video) acak',
+    description: 'Mendapatkan video AMV (Anime Music Video) acak berkualitas tinggi dari YouTube',
     isGroup: false,
     isAdmin: false,
     isBotAdmin: false,
-    execute: async (sock, m, { text, args, isGroup, sender, groupMetadata, config, dbHelper, quotedMsg }) => {
+    execute: async (sock, m, { config }) => {
         const from = m.key.remoteJid;
         const PROMO_TEXT = config.PROMO_TEXT || '';
 
-        if (!text) return await sock.sendMessage(from, { text: '❌ Silakan masukkan URL link target!' }, { quoted: m });
-        
         try {
-            await sock.sendMessage(from, { text: '⏳ Sedang mengunduh media...' }, { quoted: m });
-            const res = await axios.get(`https://api.vreden.web.id/api/amv${encodeURIComponent(text)}`);
-            const mediaUrl = res.data.url || res.data.result || res.data.download || (res.data.data && res.data.data.url);
+            await sock.sendMessage(from, { text: '⏳ Sedang mencari dan mempersiapkan video AMV acak...' }, { quoted: m });
             
-            if (!mediaUrl) throw new Error('URL download tidak ditemukan dari API.');
+            // Pick a random query to get varied results
+            const queries = [
+                'anime amv edit aesthetic',
+                'anime music video mix',
+                'best anime amv compilation short',
+                'anime amv mashup'
+            ];
+            const query = queries[Math.floor(Math.random() * queries.length)];
             
-            await sock.sendMessage(from, { 
-                video: { url: mediaUrl },
-                caption: `✅ *DOWNLOADER SUCCESS*\n\nTarget: ${text}\n${PROMO_TEXT}`
-            }, { quoted: m });
-        } catch (err) {
-            // Fallback try audio or simple text link
+            // Search for 10 videos on YouTube using yt-dlp
+            const { stdout } = await execPromise(`yt-dlp --print webpage_url "ytsearch10:${query}"`);
+            
+            const urls = stdout.split('\n')
+                .map(line => line.trim())
+                .filter(line => line.startsWith('https://www.youtube.com/watch?v=') || line.startsWith('https://youtube.com/watch?v='));
+            
+            if (urls.length === 0) {
+                throw new Error('Tidak ada video AMV yang ditemukan.');
+            }
+            
+            // Pick one video url randomly
+            const targetUrl = urls[Math.floor(Math.random() * urls.length)];
+            
+            // Fetch video title/info
+            let title = 'Anime Music Video';
             try {
-                const res = await axios.get(`https://api.vreden.web.id/api/amv${encodeURIComponent(text)}`);
-                const mediaUrl = res.data.url || res.data.result || res.data.download;
-                if (mediaUrl) {
-                    await sock.sendMessage(from, { 
-                        document: { url: mediaUrl },
-                        mimetype: 'application/octet-stream',
-                        fileName: 'downloaded_file.zip',
-                        caption: `✅ *DOWNLOADER SUCCESS (Document)*\n${PROMO_TEXT}`
-                    }, { quoted: m });
-                    return;
-                }
+                const titleRes = await execPromise(`yt-dlp --print "%(title)s" "${targetUrl}"`);
+                if (titleRes.stdout.trim()) title = titleRes.stdout.trim();
             } catch (e) {}
-            await sock.sendMessage(from, { text: `❌ Gagal download: ${err.message}` }, { quoted: m });
-        }
 
+            const tempDir = path.join(__dirname, '../../temp');
+            if (!fs.existsSync(tempDir)) {
+                fs.mkdirSync(tempDir);
+            }
+            
+            const uniqueId = Date.now();
+            const videoPath = path.join(tempDir, `amv_${uniqueId}.mp4`);
+            
+            // Download the video with resolution limited to 480p for fast download
+            await sock.sendMessage(from, { text: `⏳ Mengunduh *${title}*...` }, { quoted: m });
+            const cmd = `yt-dlp -f "bestvideo[ext=mp4][height<=480]+bestaudio[ext=m4a]/best[ext=mp4]/best" -o "${videoPath}" "${targetUrl}"`;
+            await execPromise(cmd);
+
+            if (!fs.existsSync(videoPath)) {
+                throw new Error('File video tidak ditemukan setelah diunduh.');
+            }
+
+            await sock.sendMessage(from, {
+                video: fs.readFileSync(videoPath),
+                caption: `🎬 *ANIME MUSIC VIDEO (AMV)*\n\n📌 *Judul:* ${title}\n📌 *Link:* ${targetUrl}\n\nTerima kasih telah menggunakan bot! ✨${PROMO_TEXT}`
+            }, { quoted: m });
+
+            fs.unlinkSync(videoPath);
+        } catch (err) {
+            console.error('AMV Plugin Error:', err);
+            await sock.sendMessage(from, { text: `❌ Terjadi kesalahan saat mengunduh AMV: ${err.message}` }, { quoted: m });
+        }
     }
 };

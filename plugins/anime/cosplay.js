@@ -17,7 +17,7 @@ module.exports = {
         try {
             await sock.sendMessage(from, { text: '⏳ Mengambil gambar anime...' }, { quoted: m });
             await sock.sendMessage(from, { 
-                image: { url: 'https://api.vreden.web.id/api/cosplay' }, 
+                image: { url: 'https://pic.re/image' }, 
                 caption: `🌸 *COSPLAY RANDOM PIC*\n\nEnjoy!\n${PROMO_TEXT}` 
             }, { quoted: m });
         } catch (err) {
