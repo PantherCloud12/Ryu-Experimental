@@ -6,30 +6,83 @@ module.exports = {
     isGroup: false,
     isAdmin: false,
     isBotAdmin: false,
-    execute: async (sock, m, { dbHelper }) => {
-        const plugins = sock.plugins;
+    execute: async (sock, m, { text, args, config }) => {
+        const from = m.key.remoteJid;
+        const plugins = sock.plugins || {};
         const categories = {};
 
+        // Group plugins by category
         Object.values(plugins).forEach(p => {
             const cat = p.category || 'other';
             if (!categories[cat]) categories[cat] = [];
-            categories[cat].push(p);
+            
+            // Avoid duplicate registrations of the same plugin in list
+            if (!categories[cat].some(existing => existing.name === p.name)) {
+                categories[cat].push(p);
+            }
         });
 
-        let menuText = `✨ *RYU EXPERIMENTAL BOT* ✨\n\n`;
-        menuText += `Berikut adalah daftar menu perintah yang tersedia:\n\n`;
+        const sortedCategories = Object.keys(categories).sort();
+        const totalPlugins = Object.keys(plugins).length;
+        const prefix = config.prefix || '.';
 
-        for (const [cat, list] of Object.entries(categories)) {
-            menuText += `*┌─── 📂 [ ${cat.toUpperCase()} ]* \n`;
-            list.forEach(p => {
-                const cmdString = Array.isArray(p.command) ? p.command.join('/') : p.name;
-                menuText += `*│* ∘ .${cmdString} - _${p.description}_\n`;
+        let menuText = `✨ *${config.botName.toUpperCase()} - DASHBOARD MENU* ✨\n\n`;
+        menuText += `👤 *Owner:* ${config.ownerName}\n`;
+        menuText += `🤖 *Total Plugin:* ${totalPlugins} files\n`;
+        menuText += `📌 *Prefix:* "${prefix}"\n\n`;
+
+        const query = args[0] ? args[0].toLowerCase().trim() : null;
+
+        if (!query) {
+            // Compact Menu
+            menuText += `Silakan pilih kategori menu di bawah ini:\n\n`;
+            
+            sortedCategories.forEach(cat => {
+                const count = categories[cat].length;
+                menuText += `*┌─── 📂 [ ${cat.toUpperCase()} ]*\n`;
+                menuText += `*│* Total: *${count}* perintah\n`;
+                menuText += `*│* Ketik: \`${prefix}menu ${cat}\`\n`;
+                menuText += `*└───────────────*\n\n`;
             });
-            menuText += `*└───────────────*\n\n`;
+
+            menuText += `💡 *Tips:* Ketik \`${prefix}menu all\` untuk menampilkan seluruh daftar perintah sekaligus.`;
+            return await sock.sendMessage(from, { text: menuText }, { quoted: m });
         }
 
-        menuText += `Gunakan perintah dengan prefix titik (contoh: *.kick*)`;
-        
-        await sock.sendMessage(m.key.remoteJid, { text: menuText }, { quoted: m });
+        if (query === 'all') {
+            // Full Menu
+            menuText += `Berikut adalah seluruh perintah yang tersedia:\n\n`;
+            
+            sortedCategories.forEach(cat => {
+                menuText += `*┌─── 📂 [ ${cat.toUpperCase()} ]* \n`;
+                categories[cat].forEach(p => {
+                    const cmdString = Array.isArray(p.command) ? p.command.join('/') : p.name;
+                    menuText += `*│* ∘ ${prefix}${cmdString}\n*│*   _${p.description || 'Tidak ada deskripsi.'}_\n`;
+                });
+                menuText += `*└───────────────*\n\n`;
+            });
+
+            menuText += `${config.PROMO_TEXT}`;
+            return await sock.sendMessage(from, { text: menuText }, { quoted: m });
+        }
+
+        // Specific Category Menu
+        if (categories[query]) {
+            menuText += `Daftar perintah untuk kategori *${query.toUpperCase()}*:\n\n`;
+            menuText += `*┌─── 📂 [ ${query.toUpperCase()} ]* \n`;
+            categories[query].forEach(p => {
+                const cmdString = Array.isArray(p.command) ? p.command.join('/') : p.name;
+                menuText += `*│* ∘ ${prefix}${cmdString}\n*│*   _${p.description || 'Tidak ada deskripsi.'}_\n`;
+            });
+            menuText += `*└───────────────*\n\n`;
+            
+            menuText += `${config.PROMO_TEXT}`;
+            return await sock.sendMessage(from, { text: menuText }, { quoted: m });
+        } else {
+            // Category not found
+            menuText += `❌ Kategori *${args[0]}* tidak ditemukan.\n\n`;
+            menuText += `Gunakan \`${prefix}menu\` untuk melihat semua kategori yang valid.`;
+            return await sock.sendMessage(from, { text: menuText }, { quoted: m });
+        }
     }
 };

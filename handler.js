@@ -45,7 +45,7 @@ module.exports = async (sock, m) => {
             if (linkPattern.test(text)) {
                 const meta = await getGroupMetadata(sock, remoteJid);
                 if (meta) {
-                    const admins = meta.participants.filter(p => p.admin !== null).map(p => p.id);
+                    const admins = meta.participants.filter(p => !!p.admin).map(p => p.id);
                     const isAdmin = admins.includes(sender);
                     if (!isAdmin && !isOwner) {
                         // Hapus pesan
@@ -78,7 +78,7 @@ module.exports = async (sock, m) => {
             if (isInvite || isStatusMsg) {
                 const meta = await getGroupMetadata(sock, remoteJid);
                 if (meta) {
-                    const admins = meta.participants.filter(p => p.admin !== null).map(p => p.id);
+                    const admins = meta.participants.filter(p => !!p.admin).map(p => p.id);
                     const isAdmin = admins.includes(sender);
                     if (!isAdmin && !isOwner) {
                         // Hapus pesan
@@ -132,7 +132,7 @@ module.exports = async (sock, m) => {
             groupMetadata = await getGroupMetadata(sock, remoteJid);
             if (groupMetadata) {
                 participants = groupMetadata.participants;
-                admins = participants.filter(p => p.admin !== null).map(p => p.id);
+                admins = participants.filter(p => !!p.admin).map(p => p.id);
                 isAdmin = admins.includes(sender);
                 const botJid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
                 isBotAdmin = admins.includes(botJid);
