@@ -87,9 +87,37 @@ async function startBot() {
                     console.error('[ERROR] Gagal mendapatkan pairing code:', err.message);
                 }
             }, 3000);
-        } else if (process.stdin.isTTY) {
+        } else {
             const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-            const question = (text) => new Promise((resolve) => rl.question(text, resolve));
+            
+            // Helper function to ask questions in all environments.
+            // Prints the prompt text with console.log to ensure it gets flushed to non-TTY consoles (Pterodactyl).
+            // Includes a timeout to prevent hanging on PM2/non-interactive Docker.
+            const askQuestion = (text, timeoutMs = 20000, defaultVal = '') => {
+                return new Promise((resolve) => {
+                    console.log(text);
+                    let resolved = false;
+                    let timer;
+                    
+                    if (timeoutMs) {
+                        timer = setTimeout(() => {
+                            if (!resolved) {
+                                resolved = true;
+                                console.log(`\n[SYSTEM] Waktu input habis (${timeoutMs / 1000} detik). Menggunakan nilai bawaan: ${defaultVal || 'tidak ada'}`);
+                                resolve(defaultVal);
+                            }
+                        }, timeoutMs);
+                    }
+                    
+                    rl.question('', (answer) => {
+                        if (!resolved) {
+                            resolved = true;
+                            if (timer) clearTimeout(timer);
+                            resolve(answer);
+                        }
+                    });
+                });
+            };
 
             console.log('====================================');
             console.log('   PILIH METODE KONEKSI WHATSAPP    ');
@@ -98,38 +126,42 @@ async function startBot() {
             console.log('2. Pairing Code (Gunakan Nomor HP)');
             console.log('====================================');
             
-            const option = await question('Pilih metode (1/2): ');
-            if (option.trim() === '2') {
-                let phoneNumber = await question('Masukkan nomor WhatsApp (contoh: 628123456789): ');
-                phoneNumber = phoneNumber.replace(/[^0-9]/g, '');
+            try {
+                const option = await askQuestion('Pilih metode (1/2):', 20000, '1');
                 
-                if (!phoneNumber) {
-                    console.log('Nomor tidak valid! Menggunakan QR Code...');
-                    sock.qrChoice = 'qr';
+                if (option.trim() === '2') {
+                    let phoneNumber = await askQuestion('Masukkan nomor WhatsApp (contoh: 628123456789):', 40000, '');
+                    phoneNumber = phoneNumber.replace(/[^0-9]/g, '');
+                    
+                    if (!phoneNumber) {
+                        console.log('Nomor tidak valid! Menggunakan QR Code...');
+                        sock.qrChoice = 'qr';
+                    } else {
+                        sock.qrChoice = 'pairing';
+                        console.log('\n[SYSTEM] Meminta pairing code, mohon tunggu...');
+                        setTimeout(async () => {
+                            try {
+                                const code = await sock.requestPairingCode(phoneNumber);
+                                console.log('\n====================================');
+                                console.log(`🔑 PAIRING CODE ANDA: ${code}`);
+                                console.log('====================================');
+                                console.log('Buka WhatsApp -> Perangkat Tertaut -> Tautkan Perangkat -> Tautkan dengan nomor telepon saja -> Masukkan kode di atas.');
+                                console.log('====================================\n');
+                            } catch (err) {
+                                console.error('[ERROR] Gagal mendapatkan pairing code:', err.message);
+                            }
+                        }, 3000);
+                    }
                 } else {
-                    sock.qrChoice = 'pairing';
-                    console.log('\n[SYSTEM] Meminta pairing code, mohon tunggu...');
-                    setTimeout(async () => {
-                        try {
-                            const code = await sock.requestPairingCode(phoneNumber);
-                            console.log('\n====================================');
-                            console.log(`🔑 PAIRING CODE ANDA: ${code}`);
-                            console.log('====================================');
-                            console.log('Buka WhatsApp -> Perangkat Tertaut -> Tautkan Perangkat -> Tautkan dengan nomor telepon saja -> Masukkan kode di atas.');
-                            console.log('====================================\n');
-                        } catch (err) {
-                            console.error('[ERROR] Gagal mendapatkan pairing code:', err.message);
-                        }
-                    }, 3000);
+                    sock.qrChoice = 'qr';
+                    console.log('\n[SYSTEM] Menggunakan QR Code. Menunggu QR code di-generate...');
                 }
-            } else {
+            } catch (e) {
+                console.log('\n[SYSTEM] Gagal membaca input, menggunakan QR Code...');
                 sock.qrChoice = 'qr';
-                console.log('\n[SYSTEM] Menggunakan QR Code. Menunggu QR code di-generate...');
+            } finally {
+                rl.close();
             }
-            rl.close();
-        } else {
-            console.log('\n[SYSTEM] Non-TTY / Panel Mode terdeteksi. Menggunakan QR Code secara default...');
-            sock.qrChoice = 'qr';
         }
     }
 
