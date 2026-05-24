@@ -8,18 +8,53 @@ const pino = require('pino');
 const qrcode = require('qrcode-terminal');
 const readline = require('readline');
 const fs = require('fs');
+const path = require('path');
+const dbHelper = require('./lib/db');
+
+// Load database
+dbHelper.load();
+
+// Map and Loader for Plugins
+const plugins = {};
+function loadPlugins() {
+    const pluginsDir = path.join(__dirname, 'plugins');
+    if (!fs.existsSync(pluginsDir)) {
+        fs.mkdirSync(pluginsDir);
+    }
+    
+    const files = fs.readdirSync(pluginsDir);
+    for (const file of files) {
+        if (file.endsWith('.js')) {
+            try {
+                const pluginPath = path.join(pluginsDir, file);
+                delete require.cache[require.resolve(pluginPath)];
+                const plugin = require(pluginPath);
+                if (plugin.name && typeof plugin.execute === 'function') {
+                    plugins[plugin.name] = plugin;
+                }
+            } catch (err) {
+                console.error(`Gagal memuat plugin ${file}:`, err);
+            }
+        }
+    }
+    console.log(`✅ Berhasil memuat ${Object.keys(plugins).length} plugin.`);
+}
+
+loadPlugins();
 
 async function startBot() {
-    // Menyimpan sesi agar tidak perlu scan QR / pairing setiap kali restart
     const { state, saveCreds } = await useMultiFileAuthState('session');
 
     const sock = makeWASocket({
         auth: state,
-        printQRInTerminal: false, // Kita hendel cetak QR / pairing code manual
-        logger: pino({ level: 'silent' }) // Mengurangi log yang terlalu banyak
+        printQRInTerminal: false,
+        logger: pino({ level: 'silent' })
     });
 
     sock.ev.on('creds.update', saveCreds);
+
+    // Dynamic plugins exposed to other commands
+    sock.plugins = plugins;
 
     // Handling pairing code / QR Code
     if (!sock.authState.creds.registered) {
@@ -41,7 +76,6 @@ async function startBot() {
                 }
             }, 3000);
         } else if (process.stdin.isTTY) {
-            // Setup readline interface hanya jika dijalankan di terminal interaktif (TTY)
             const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
             const question = (text) => new Promise((resolve) => rl.question(text, resolve));
 
@@ -82,9 +116,22 @@ async function startBot() {
             }
             rl.close();
         } else {
-            // Non-TTY / Pterodactyl / Piped input
             console.log('\n[SYSTEM] Non-TTY / Panel Mode terdeteksi. Menggunakan QR Code secara default...');
             sock.qrChoice = 'qr';
+        }
+    }
+
+    // Cache metadata group
+    const groupCache = new Map();
+    async function getGroupMetadata(jid) {
+        if (groupCache.has(jid)) return groupCache.get(jid);
+        try {
+            const meta = await sock.groupMetadata(jid);
+            groupCache.set(jid, meta);
+            setTimeout(() => groupCache.delete(jid), 30000); // 30 detik TTL cache
+            return meta;
+        } catch (err) {
+            return null;
         }
     }
 
@@ -120,19 +167,160 @@ async function startBot() {
         }
     });
 
+    // Handle incoming welcome / goodbye events
+    sock.ev.on('group-participants.update', async (update) => {
+        const { id, participants, action } = update;
+        const chatDb = dbHelper.getChat(id);
+        if (!chatDb.welcome) return;
+
+        const metadata = await getGroupMetadata(id);
+        if (!metadata) return;
+
+        for (const num of participants) {
+            let userTag = `@${num.split('@')[0]}`;
+            if (action === 'add') {
+                let msgText = chatDb.welcomeMessage
+                    .replace(/@user/g, userTag)
+                    .replace(/@subject/g, metadata.subject);
+                await sock.sendMessage(id, { text: msgText, mentions: [num] });
+            } else if (action === 'remove') {
+                let msgText = chatDb.byeMessage
+                    .replace(/@user/g, userTag)
+                    .replace(/@subject/g, metadata.subject);
+                await sock.sendMessage(id, { text: msgText, mentions: [num] });
+            }
+        }
+    });
+
     sock.ev.on('messages.upsert', async (m) => {
         const msg = m.messages[0];
         if (!msg.message || msg.key.fromMe) return;
 
         const remoteJid = msg.key.remoteJid;
-        const text = msg.message.conversation || msg.message.extendedTextMessage?.text || "";
+        const isGroup = remoteJid.endsWith('@g.us');
+        
+        // Parse message content
+        const conversation = msg.message.conversation;
+        const extendedText = msg.message.extendedTextMessage?.text;
+        const text = conversation || extendedText || "";
+        
+        const sender = isGroup ? (msg.key.participant || "") : remoteJid;
 
-        console.log(`Pesan masuk dari ${remoteJid}: ${text}`);
+        // Anti-link validation
+        if (isGroup) {
+            const chatDb = dbHelper.getChat(remoteJid);
+            if (chatDb.antilink) {
+                // Pola pencarian link whatsapp
+                const linkPattern = /chat\.whatsapp\.com\/[a-zA-Z0-9]{20,26}/i;
+                if (linkPattern.test(text)) {
+                    const meta = await getGroupMetadata(remoteJid);
+                    if (meta) {
+                        const admins = meta.participants.filter(p => p.admin !== null).map(p => p.id);
+                        const isAdmin = admins.includes(sender);
+                        if (!isAdmin) {
+                            // Hapus pesan
+                            await sock.sendMessage(remoteJid, { delete: msg.key });
+                            
+                            // Info & Kick
+                            await sock.sendMessage(remoteJid, { 
+                                text: `⚠️ *Anti Link Terdeteksi!*\n\nMember @${sender.split('@')[0]} mengirimkan link grup WhatsApp. Pesan telah dihapus dan member akan dikeluarkan dari grup.`, 
+                                mentions: [sender] 
+                            });
 
-        if (text.toLowerCase() === '.ping') {
-            await sock.sendMessage(remoteJid, { text: 'Pong! Bot Ryu Experimental aktif! 🚀' });
+                            const botJid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
+                            const isBotAdmin = admins.includes(botJid);
+                            if (isBotAdmin) {
+                                await sock.groupParticipantsUpdate(remoteJid, [sender], 'remove');
+                            } else {
+                                await sock.sendMessage(remoteJid, { text: '❌ Gagal mengeluarkan member karena bot bukan admin.' });
+                            }
+                            return; // Stop processing plugins
+                        }
+                    }
+                }
+            }
+        }
+
+        // Prefix check (default '.')
+        const prefix = '.';
+        if (!text.startsWith(prefix)) return;
+
+        const parts = text.slice(prefix.length).trim().split(/\s+/);
+        const commandName = parts[0].toLowerCase();
+        const args = parts.slice(1);
+        const argsRaw = text.slice(prefix.length + commandName.length).trim();
+
+        // Find matching plugin
+        const plugin = Object.values(plugins).find(p => 
+            p.name === commandName || (p.command && p.command.includes(commandName))
+        );
+
+        if (!plugin) return;
+
+        try {
+            // Get metadata for commands
+            let groupMetadata = null;
+            let participants = [];
+            let admins = [];
+            let isAdmin = false;
+            let isBotAdmin = false;
+
+            if (isGroup) {
+                groupMetadata = await getGroupMetadata(remoteJid);
+                if (groupMetadata) {
+                    participants = groupMetadata.participants;
+                    admins = participants.filter(p => p.admin !== null).map(p => p.id);
+                    isAdmin = admins.includes(sender);
+                    const botJid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
+                    isBotAdmin = admins.includes(botJid);
+                }
+            }
+
+            // Command validation checks
+            if (plugin.isGroup && !isGroup) {
+                return await sock.sendMessage(remoteJid, { text: '❌ Fitur ini hanya dapat digunakan di dalam grup!' });
+            }
+
+            if (plugin.isAdmin && !isAdmin) {
+                return await sock.sendMessage(remoteJid, { text: '❌ Perintah ini hanya dapat dijalankan oleh admin grup!' });
+            }
+
+            if (plugin.isBotAdmin && !isBotAdmin) {
+                return await sock.sendMessage(remoteJid, { text: '❌ Bot harus menjadi admin grup untuk menjalankan perintah ini!' });
+            }
+
+            // Mention parsing
+            let mentionedJid = msg.message.extendedTextMessage?.contextInfo?.mentionedJid || [];
+            
+            // Quoted message parsing
+            const quotedMsg = msg.message.extendedTextMessage?.contextInfo?.quotedMessage || null;
+            const quotedSender = msg.message.extendedTextMessage?.contextInfo?.participant || null;
+            const quotedId = msg.message.extendedTextMessage?.contextInfo?.stanzaId || null;
+
+            // Run plugin
+            await plugin.execute(sock, msg, {
+                text: argsRaw,
+                args,
+                isGroup,
+                sender,
+                groupMetadata,
+                participants,
+                admins,
+                isAdmin,
+                isBotAdmin,
+                mentionedJid,
+                quotedMsg,
+                quotedSender,
+                quotedId,
+                dbHelper
+            });
+
+        } catch (err) {
+            console.error(`Error executing plugin ${plugin.name}:`, err);
+            await sock.sendMessage(remoteJid, { text: `❌ Terjadi kesalahan saat menjalankan perintah: ${err.message}` });
         }
     });
 }
 
 startBot();
+
