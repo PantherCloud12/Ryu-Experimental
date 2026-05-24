@@ -1,10 +1,3 @@
-/**
- * @project    : Spotify Downloader
- * @author     : Kayllano Aveline  👨💻
- * @description: Nggakk usah nnya lagii 
- * Website     : xalixia.biz.id
- **/
-
 const axios = require("axios");
 const fs = require("fs");
 const path = require("path");
