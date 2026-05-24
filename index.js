@@ -7,10 +7,7 @@ const {
 const pino = require('pino');
 const qrcode = require('qrcode-terminal');
 const readline = require('readline');
-
-// Setup readline interface for interactive input
-const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-const question = (text) => new Promise((resolve) => rl.question(text, resolve));
+const fs = require('fs');
 
 async function startBot() {
     // Menyimpan sesi agar tidak perlu scan QR / pairing setiap kali restart
@@ -43,7 +40,11 @@ async function startBot() {
                     console.error('[ERROR] Gagal mendapatkan pairing code:', err.message);
                 }
             }, 3000);
-        } else {
+        } else if (process.stdin.isTTY) {
+            // Setup readline interface hanya jika dijalankan di terminal interaktif (TTY)
+            const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+            const question = (text) => new Promise((resolve) => rl.question(text, resolve));
+
             console.log('====================================');
             console.log('   PILIH METODE KONEKSI WHATSAPP    ');
             console.log('====================================');
@@ -79,6 +80,11 @@ async function startBot() {
                 sock.qrChoice = 'qr';
                 console.log('\n[SYSTEM] Menggunakan QR Code. Menunggu QR code di-generate...');
             }
+            rl.close();
+        } else {
+            // Non-TTY / Pterodactyl / Piped input
+            console.log('\n[SYSTEM] Non-TTY / Panel Mode terdeteksi. Menggunakan QR Code secara default...');
+            sock.qrChoice = 'qr';
         }
     }
 
@@ -91,19 +97,26 @@ async function startBot() {
         }
 
         if (connection === 'close') {
-            const shouldReconnect = (lastDisconnect.error)?.output?.statusCode !== DisconnectReason.loggedOut;
-            console.log('Koneksi terputus. Alasan:', lastDisconnect.error?.message);
-            console.log('Mencoba menghubungkan kembali:', shouldReconnect);
+            const statusCode = lastDisconnect.error?.output?.statusCode;
+            const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
             
-            if (shouldReconnect) {
-                startBot();
-            } else {
-                console.log('Sesi telah logout. Silakan hapus folder "session" dan hubungkan kembali.');
+            console.log('Koneksi terputus. Alasan:', lastDisconnect.error?.message || lastDisconnect.error);
+            
+            if (!shouldReconnect) {
+                console.log('Sesi telah logout atau tidak valid. Menghapus folder "session"...');
+                try {
+                    fs.rmSync('session', { recursive: true, force: true });
+                    console.log('Folder "session" berhasil dihapus. Silakan jalankan ulang bot.');
+                } catch (err) {
+                    console.error('Gagal menghapus folder session:', err.message);
+                }
                 process.exit(1);
+            } else {
+                console.log('Mencoba menghubungkan kembali dalam 5 detik...');
+                setTimeout(startBot, 5000);
             }
         } else if (connection === 'open') {
             console.log('✅ Bot berhasil terhubung ke WhatsApp!');
-            rl.close();
         }
     });
 
