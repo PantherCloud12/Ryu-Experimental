@@ -162,17 +162,10 @@ module.exports = async (sock, m) => {
                 admins = participants.filter(p => !!p.admin).map(p => p.id);
                 isAdmin = admins.some(a => isMatch(a, sender, "", participantAlt));
                 
-                // Fix Bot Admin detection: Use isMatch helper instead of raw string includes
-                // This handles :device_id and @s.whatsapp.net vs @c.us correctly
+                // Fix Bot Admin detection: Include LID if available
                 const selfJid = sock.user.id;
-                isBotAdmin = admins.some(a => isMatch(a, selfJid));
-
-                // DEBUG LOGS - Hapus setelah fix
-                console.log('--- DEBUG ADMIN DETECTION ---');
-                console.log('Self JID:', selfJid);
-                console.log('Admins List:', JSON.stringify(admins));
-                console.log('Is Bot Admin?:', isBotAdmin);
-                console.log('-----------------------------');
+                const selfLid = sock.user.lid || "";
+                isBotAdmin = admins.some(a => isMatch(a, selfJid, "", selfLid));
             }
         }
 
