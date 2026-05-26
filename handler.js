@@ -36,10 +36,10 @@ module.exports = async (sock, m) => {
     const remoteJidAlt = msg.key.remoteJidAlt || "";
     const botJid = sock.user.id.split(':')[0] + (sock.user.id.includes(':') ? '@s.whatsapp.net' : (sock.user.id.includes('@') ? '' : '@s.whatsapp.net'));
     
-    // Filter out JIDs to get raw numbers/IDs for comparison
-    const cleanJid = (jid) => jid ? jid.split('@')[0] : "";
+    // Filter out JIDs to get raw numbers/IDs for comparison (support device IDs and different formats)
+    const cleanJid = (jid) => jid ? jid.split('@')[0].split(':')[0] : "";
     
-    // Check if sender or its alternative JID is in the owner list (using clean ID comparison)
+    // Robust Owner Check
     const isOwner = config.owner.some(o => 
                         cleanJid(o) === cleanJid(sender) || 
                         (remoteJidAlt && cleanJid(o) === cleanJid(remoteJidAlt))
@@ -69,8 +69,8 @@ module.exports = async (sock, m) => {
                             mentions: [sender] 
                         });
 
-                        const botJid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
-                        const isBotAdmin = admins.includes(botJid);
+                        const botJidPlain = sock.user.id.split(':')[0] + '@s.whatsapp.net';
+                        const isBotAdmin = admins.includes(botJidPlain);
                         if (isBotAdmin) {
                             await sock.groupParticipantsUpdate(remoteJid, [sender], 'remove');
                         } else {
@@ -102,8 +102,8 @@ module.exports = async (sock, m) => {
                             mentions: [sender] 
                         });
 
-                        const botJid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
-                        const isBotAdmin = admins.includes(botJid);
+                        const botJidPlain = sock.user.id.split(':')[0] + '@s.whatsapp.net';
+                        const isBotAdmin = admins.includes(botJidPlain);
                         if (isBotAdmin) {
                             await sock.groupParticipantsUpdate(remoteJid, [sender], 'remove');
                         } else {
@@ -146,14 +146,17 @@ module.exports = async (sock, m) => {
                 participants = groupMetadata.participants;
                 admins = participants.filter(p => !!p.admin).map(p => p.id);
                 isAdmin = admins.includes(sender);
-                const botJid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
-                isBotAdmin = admins.includes(botJid);
+                const botJidPlain = sock.user.id.split(':')[0] + '@s.whatsapp.net';
+                isBotAdmin = admins.includes(botJidPlain);
             }
         }
 
         // Command validation checks
         if (plugin.isOwner && !isOwner) {
-            return await sock.sendMessage(remoteJid, { text: `❌ *Akses Ditolak!*\n\n⚠️ Command ini hanya untuk Owner Bot!${config.PROMO_TEXT}` });
+            // Kita tampilkan detail ID biar tau kenapa gagal
+            return await sock.sendMessage(remoteJid, { 
+                text: `❌ *Akses Ditolak!*\n\nID: ${sender}\nAlt: ${remoteJidAlt}\n\n⚠️ Command ini hanya untuk Owner Bot!${config.PROMO_TEXT}` 
+            }, { quoted: m });
         }
 
         if (plugin.isGroup && !isGroup) {
@@ -198,6 +201,6 @@ module.exports = async (sock, m) => {
 
     } catch (err) {
         console.error(`Error executing plugin ${plugin.name}:`, err);
-        await sock.sendMessage(remoteJid, { text: `❌ Terjadi kesalahan saat menjalankan perintah: ${err.message}` });
+        await sock.sendMessage(remoteJid, { text: `❌ Terjadi kesalahan saat menjalankan perintah: ${err.message}` }, { quoted: m });
     }
 };
