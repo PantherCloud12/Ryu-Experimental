@@ -166,6 +166,13 @@ module.exports = async (sock, m) => {
                 // This handles :device_id and @s.whatsapp.net vs @c.us correctly
                 const selfJid = sock.user.id;
                 isBotAdmin = admins.some(a => isMatch(a, selfJid));
+
+                // DEBUG LOGS - Hapus setelah fix
+                console.log('--- DEBUG ADMIN DETECTION ---');
+                console.log('Self JID:', selfJid);
+                console.log('Admins List:', JSON.stringify(admins));
+                console.log('Is Bot Admin?:', isBotAdmin);
+                console.log('-----------------------------');
             }
         }
 
