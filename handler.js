@@ -33,8 +33,12 @@ module.exports = async (sock, m) => {
     if (msg.key.fromMe && !text.startsWith(prefix)) return;
 
     const sender = isGroup ? (msg.key.participant || "") : remoteJid;
-    const botJid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
-    const isOwner = config.owner.includes(sender) || msg.key.fromMe || sender.split('@')[0] === botJid.split('@')[0];
+    const botJid = sock.user.id.split(':')[0] + (sock.user.id.includes(':') ? '@s.whatsapp.net' : (sock.user.id.includes('@') ? '' : '@s.whatsapp.net'));
+    // Filter out JIDs to get raw numbers/IDs for comparison
+    const cleanJid = (jid) => jid.split('@')[0];
+    const isOwner = config.owner.includes(sender) || 
+                    msg.key.fromMe || 
+                    cleanJid(sender) === cleanJid(botJid);
 
     // Anti-link and Anti-SWGC validation
     if (isGroup) {

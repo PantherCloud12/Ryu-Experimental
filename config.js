@@ -1,6 +1,7 @@
 module.exports = {
     owner: [
-        '628123456789@s.whatsapp.net' // Silakan ganti dengan nomor WhatsApp owner (format: 628xxx@s.whatsapp.net)
+        '6283180621422@s.whatsapp.net',
+        '189309961380037@lid'
     ],
     botName: 'Ryu Bot',
     ownerName: 'Owner Ryu',
