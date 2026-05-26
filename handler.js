@@ -161,8 +161,11 @@ module.exports = async (sock, m) => {
                 participants = groupMetadata.participants;
                 admins = participants.filter(p => !!p.admin).map(p => p.id);
                 isAdmin = admins.some(a => isMatch(a, sender, "", participantAlt));
-                const botJidPlain = sock.user.id.split(':')[0] + '@s.whatsapp.net';
-                isBotAdmin = admins.some(a => isMatch(a, botJidPlain));
+                
+                // Fix Bot Admin detection: Use isMatch helper instead of raw string includes
+                // This handles :device_id and @s.whatsapp.net vs @c.us correctly
+                const selfJid = sock.user.id;
+                isBotAdmin = admins.some(a => isMatch(a, selfJid));
             }
         }
 
