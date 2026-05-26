@@ -1,6 +1,6 @@
 const { generateWAMessageContent, generateWAMessageFromContent } = require('@whiskeysockets/baileys');
 const crypto = require('crypto');
-const { downloadMedia } = require('../../lib/helper');
+const { downloadMedia, isMatch } = require('../../lib/helper');
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 module.exports = {
@@ -50,9 +50,10 @@ module.exports = {
             }
 
             let targetAdmins = targetMeta.participants.filter(p => !!p.admin).map(p => p.id);
-            let isSenderTargetAdmin = targetAdmins.includes(sender);
-
+            
             // Validation: Sender must be owner or admin in target group
+            const isSenderTargetAdmin = targetAdmins.some(a => isMatch(a, sender));
+
             if (!isOwner && !isSenderTargetAdmin) {
                 return await sock.sendMessage(from, {
                     text: `❌ *Akses Ditolak!*\n\n⚠️ Anda harus menjadi admin di grup target atau owner bot!`
@@ -60,16 +61,16 @@ module.exports = {
             }
 
             // Validation: Bot must be admin in target group
-            let botJid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
-            if (sock.decodeJid) botJid = sock.decodeJid(sock.user.id);
+            const selfJid = sock.user.id;
+            const selfLid = sock.user.lid || "";
             
-            let isBotTargetAdmin = targetAdmins.includes(botJid);
+            let isBotTargetAdmin = targetAdmins.some(a => isMatch(a, selfJid, "", selfLid));
             
             // If cache says not admin, try fetching fresh metadata just in case
             if (!isBotTargetAdmin) {
                 targetMeta = await sock.groupMetadata(targetJid);
                 targetAdmins = targetMeta.participants.filter(p => !!p.admin).map(p => p.id);
-                isBotTargetAdmin = targetAdmins.includes(botJid);
+                isBotTargetAdmin = targetAdmins.some(a => isMatch(a, selfJid, "", selfLid));
             }
 
             if (!isBotTargetAdmin) {

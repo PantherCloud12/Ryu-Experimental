@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const dbHelper = require('./lib/db');
 const config = require('./config');
+const { isMatch, cleanJid } = require('./lib/helper');
 
 // Cache metadata group
 async function getGroupMetadata(sock, jid) {
@@ -37,26 +38,6 @@ module.exports = async (sock, m) => {
     const participantAlt = msg.key.participantAlt || "";
     const botJid = sock.user.id.split(':')[0] + (sock.user.id.includes(':') ? '@s.whatsapp.net' : (sock.user.id.includes('@') ? '' : '@s.whatsapp.net'));
     
-    // Filter out JIDs to get raw numbers/IDs for comparison (support device IDs and different formats)
-    const cleanJid = (jid) => jid ? jid.split('@')[0].split(':')[0] : "";
-    
-    // Check if two JIDs match (support LID and different formats)
-    const isMatch = (jid1, jid2, alt1 = "", alt2 = "") => {
-        if (!jid1 || !jid2) return false;
-        const c1 = cleanJid(jid1);
-        const c2 = cleanJid(jid2);
-        if (c1 === c2) return true;
-        
-        const ca1 = cleanJid(alt1);
-        const ca2 = cleanJid(alt2);
-        
-        if (ca1 && ca1 === c2) return true;
-        if (ca2 && ca2 === c1) return true;
-        if (ca1 && ca2 && ca1 === ca2) return true;
-        
-        return false;
-    };
-
     // Robust Owner Check
     const isOwner = config.owner.some(o => isMatch(o, sender, "", isGroup ? participantAlt : remoteJidAlt)) || 
                     msg.key.fromMe || 
@@ -84,8 +65,7 @@ module.exports = async (sock, m) => {
                             mentions: [sender] 
                         });
 
-                        const botJidPlain = sock.user.id.split(':')[0] + '@s.whatsapp.net';
-                        const isBotAdmin = admins.includes(botJidPlain);
+                        const isBotAdmin = admins.some(a => isMatch(a, sock.user.id, "", sock.user.lid || ""));
                         if (isBotAdmin) {
                             await sock.groupParticipantsUpdate(remoteJid, [sender], 'remove');
                         } else {
@@ -106,7 +86,7 @@ module.exports = async (sock, m) => {
                 const meta = await getGroupMetadata(sock, remoteJid);
                 if (meta) {
                     const admins = meta.participants.filter(p => !!p.admin).map(p => p.id);
-                    const isAdmin = admins.includes(sender);
+                    const isAdmin = admins.some(a => isMatch(a, sender, "", participantAlt));
                     if (!isAdmin && !isOwner) {
                         // Hapus pesan
                         await sock.sendMessage(remoteJid, { delete: msg.key });
@@ -117,8 +97,7 @@ module.exports = async (sock, m) => {
                             mentions: [sender] 
                         });
 
-                        const botJidPlain = sock.user.id.split(':')[0] + '@s.whatsapp.net';
-                        const isBotAdmin = admins.includes(botJidPlain);
+                        const isBotAdmin = admins.some(a => isMatch(a, sock.user.id, "", sock.user.lid || ""));
                         if (isBotAdmin) {
                             await sock.groupParticipantsUpdate(remoteJid, [sender], 'remove');
                         } else {
