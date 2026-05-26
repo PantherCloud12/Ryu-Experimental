@@ -25,8 +25,8 @@ module.exports = {
 
         if (!mediaMsg?.viewOnce) {
             // Some versions of Baileys/WA might structure it differently, or it's just a normal media
-            // We check for imageMessage or videoMessage specifically if not explicitly flagged as viewOnce in the object
-            if (type !== 'imageMessage' && type !== 'videoMessage') {
+            // We check for imageMessage, videoMessage, or audioMessage
+            if (type !== 'imageMessage' && type !== 'videoMessage' && type !== 'audioMessage') {
                 return await sock.sendMessage(from, { text: '❌ Pesan yang di-reply bukan pesan sekali lihat!' }, { quoted: m });
             }
         }
@@ -41,6 +41,8 @@ module.exports = {
                 await sock.sendMessage(from, { image: buffer, caption: caption + '\n\n*Read View Once (Success)*' }, { quoted: m });
             } else if (type === 'videoMessage') {
                 await sock.sendMessage(from, { video: buffer, caption: caption + '\n\n*Read View Once (Success)*' }, { quoted: m });
+            } else if (type === 'audioMessage') {
+                await sock.sendMessage(from, { audio: buffer, mimetype: mediaMsg.mimetype || 'audio/ogg; codecs=opus', ptt: true }, { quoted: m });
             }
         } catch (e) {
             console.error('RVO Error:', e);

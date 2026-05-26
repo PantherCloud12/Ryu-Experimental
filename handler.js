@@ -127,6 +127,9 @@ module.exports = async (sock, m) => {
                         await sock.sendMessage(remoteJid, { image: buffer, caption: `🛡️ *Anti ViewOnce Terdeteksi!*\n\nPelaku: ${tag}\nCaption: ${caption}`, mentions: [sender] }, { quoted: msg });
                     } else if (type === 'videoMessage') {
                         await sock.sendMessage(remoteJid, { video: buffer, caption: `🛡️ *Anti ViewOnce Terdeteksi!*\n\nPelaku: ${tag}\nCaption: ${caption}`, mentions: [sender] }, { quoted: msg });
+                    } else if (type === 'audioMessage') {
+                        await sock.sendMessage(remoteJid, { text: `🛡️ *Anti ViewOnce Terdeteksi (Voice Note)!*\n\nPelaku: ${tag}`, mentions: [sender] }, { quoted: msg });
+                        await sock.sendMessage(remoteJid, { audio: buffer, mimetype: mediaMsg.mimetype || 'audio/ogg; codecs=opus', ptt: true }, { quoted: msg });
                     }
                 } catch (e) {
                     console.error('Anti-ViewOnce Error:', e);
