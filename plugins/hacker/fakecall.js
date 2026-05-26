@@ -9,15 +9,24 @@ module.exports = {
     execute: async (sock, m, { text, args, commandName, config, quotedSender }) => {
         const from = m.key.remoteJid;
         
-        // Target detection
-        let target = m.message.extendedTextMessage?.contextInfo?.mentionedJid?.[0] || quotedSender || from;
-        if (args[0] && args[0].replace(/[^0-9]/g, '').length > 5 && !args[0].includes('missed') && !args[0].includes('ls') && !args[0].includes('in')) {
-            target = args[0].replace(/[^0-9]/g, '') + '@s.whatsapp.net';
+        // Target detection order: Mention > Reply > Manual Number in args > Self
+        let target = m.message.extendedTextMessage?.contextInfo?.mentionedJid?.[0] || quotedSender;
+        
+        // Search for a number in any of the arguments if no target found yet
+        if (!target) {
+            const numberInArgs = args.find(arg => arg.replace(/[^0-9]/g, '').length > 5);
+            if (numberInArgs) {
+                target = numberInArgs.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
+            }
         }
         
+        // Default to current JID if still no target
+        if (!target) target = from;
+        
         const cmd = commandName || '';
-        const isVideo = cmd.includes('vc') || (args.join(' ').toLowerCase().includes('video'));
-        const isMissed = args.join(' ').toLowerCase().includes('missed') || args.join(' ').toLowerCase().includes('ls');
+        const argsLower = args.join(' ').toLowerCase();
+        const isVideo = cmd.includes('vc') || argsLower.includes('video') || argsLower.includes('vc');
+        const isMissed = argsLower.includes('missed') || argsLower.includes('ls');
         
         try {
             if (isMissed) {
