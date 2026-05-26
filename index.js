@@ -237,10 +237,22 @@ async function startBot() {
     });
 
     sock.ev.on('messages.upsert', async (m) => {
-        const handler = require('./handler');
-        await handler(sock, m);
+        try {
+            const handler = require('./handler');
+            await handler(sock, m);
+        } catch (err) {
+            console.error('[ERROR] Handler Error:', err);
+        }
     });
 }
+
+process.on('uncaughtException', (err) => {
+    console.error('[SYSTEM] Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('[SYSTEM] Unhandled Rejection at:', promise, 'reason:', reason);
+});
 
 startBot();
 
