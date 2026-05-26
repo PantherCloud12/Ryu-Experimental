@@ -108,6 +108,31 @@ module.exports = async (sock, m) => {
                 }
             }
         }
+
+        // 3. Anti-ViewOnce
+        if (chatDb.antiviewonce) {
+            const viewOnce = msg.message?.viewOnceMessage || msg.message?.viewOnceMessageV2 || msg.message?.viewOnceMessageV2Extension;
+            if (viewOnce) {
+                const { downloadMedia } = require('./lib/helper');
+                const vMsg = viewOnce.message;
+                const type = Object.keys(vMsg)[0];
+                const mediaMsg = vMsg[type];
+
+                try {
+                    const buffer = await downloadMedia(mediaMsg, type.replace('Message', ''));
+                    const caption = mediaMsg.caption || '';
+                    const tag = `@${sender.split('@')[0]}`;
+
+                    if (type === 'imageMessage') {
+                        await sock.sendMessage(remoteJid, { image: buffer, caption: `🛡️ *Anti ViewOnce Terdeteksi!*\n\nPelaku: ${tag}\nCaption: ${caption}`, mentions: [sender] }, { quoted: msg });
+                    } else if (type === 'videoMessage') {
+                        await sock.sendMessage(remoteJid, { video: buffer, caption: `🛡️ *Anti ViewOnce Terdeteksi!*\n\nPelaku: ${tag}\nCaption: ${caption}`, mentions: [sender] }, { quoted: msg });
+                    }
+                } catch (e) {
+                    console.error('Anti-ViewOnce Error:', e);
+                }
+            }
+        }
     }
 
     // Prefix check (default '.')
