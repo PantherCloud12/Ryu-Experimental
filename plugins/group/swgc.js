@@ -11,11 +11,10 @@ module.exports = {
     isGroup: false,
     isAdmin: false,
     isBotAdmin: false,
-    execute: async (sock, m, { text, args, isGroup, sender, groupMetadata, config, quotedMsg }) => {
+    execute: async (sock, m, { text, args, isGroup, sender, groupMetadata, config, isOwner, quotedMsg }) => {
         const from = m.key.remoteJid;
         const PROMO_TEXT = config.PROMO_TEXT || '';
-        const isOwner = config.owner.includes(sender);
-
+        
         try {
             let targetJid = from;
             let caption = args.join(' ') || null;

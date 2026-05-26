@@ -4,7 +4,7 @@ const axios = require('axios');
 
 module.exports = {
     name: 'antidelete',
-    command: ["antihapus"],
+    command: ["antidelete", "antihapus"],
     category: 'group',
     description: 'Mengaktifkan fitur anti hapus pesan di grup',
     isGroup: true,

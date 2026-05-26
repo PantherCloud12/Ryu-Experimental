@@ -4,19 +4,18 @@ const axios = require('axios');
 
 module.exports = {
     name: 'unmute',
-    command: ["bukagrup","opengroup"],
+    command: ["unmute", "bukagrup","opengroup"],
     category: 'group',
     description: 'Membuka grup agar seluruh member bisa mengirim pesan',
     isGroup: true,
     isAdmin: false,
     isBotAdmin: false,
-    execute: async (sock, m, { text, args, isGroup, sender, groupMetadata, config, dbHelper, quotedMsg }) => {
+    execute: async (sock, m, { text, args, isGroup, sender, groupMetadata, config, isAdmin, isOwner, dbHelper, quotedMsg }) => {
         const from = m.key.remoteJid;
         const PROMO_TEXT = config.PROMO_TEXT || '';
 
         if (!isGroup) return await sock.sendMessage(from, { text: '❌ Hanya dapat dipanggil di grup!' }, { quoted: m });
-        const targetAdmins = groupMetadata.participants.filter(p => !!p.admin).map(p => p.id);
-        if (!targetAdmins.includes(sender) && !config.owner.includes(sender)) {
+        if (!isAdmin && !isOwner) {
             return await sock.sendMessage(from, { text: '❌ Hanya admin grup yang dapat menggunakan fitur ini!' }, { quoted: m });
         }
         
