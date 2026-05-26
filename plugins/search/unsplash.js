@@ -18,7 +18,7 @@ module.exports = {
         
         try {
             await sock.sendMessage(from, { text: '⏳ Membuat gambar...' }, { quoted: m });
-            const imageUrl = `https://widipe.com/unsplash?query=${encodeURIComponent(text)}`;
+            const imageUrl = `https://api.agatz.xyz/api/unsplash?query=${encodeURIComponent(text)}`;
             await sock.sendMessage(from, { 
                 image: { url: imageUrl },
                 caption: `🎨 *UNSPLASH MAKER*\n\nPrompt: "${text}"\n${PROMO_TEXT}`

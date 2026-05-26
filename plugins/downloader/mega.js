@@ -18,7 +18,7 @@ module.exports = {
         
         try {
             await sock.sendMessage(from, { text: '⏳ Sedang mengunduh media...' }, { quoted: m });
-            const res = await axios.get(`https://widipe.com/download/mega?url=${encodeURIComponent(text)}`);
+            const res = await axios.get(`https://api.agatz.xyz/api/download/mega?url=${encodeURIComponent(text)}`);
             const mediaUrl = res.data.url || res.data.result || res.data.download || (res.data.data && res.data.data.url);
             
             if (!mediaUrl) throw new Error('URL download tidak ditemukan dari API.');
@@ -30,7 +30,7 @@ module.exports = {
         } catch (err) {
             // Fallback try audio or simple text link
             try {
-                const res = await axios.get(`https://widipe.com/download/mega?url=${encodeURIComponent(text)}`);
+                const res = await axios.get(`https://api.agatz.xyz/api/download/mega?url=${encodeURIComponent(text)}`);
                 const mediaUrl = res.data.url || res.data.result || res.data.download;
                 if (mediaUrl) {
                     await sock.sendMessage(from, { 

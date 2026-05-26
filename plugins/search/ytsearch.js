@@ -17,7 +17,7 @@ module.exports = {
         if (!text) return await sock.sendMessage(from, { text: '❌ Masukkan query pencarian YouTube!' }, { quoted: m });
         try {
             await sock.sendMessage(from, { text: '🔍 Mencari YouTube...' }, { quoted: m });
-            const res = await axios.get(`https://widipe.com/ytsearch?query=${encodeURIComponent(text)}`);
+            const res = await axios.get(`https://api.agatz.xyz/api/ytsearch?query=${encodeURIComponent(text)}`);
             const results = res.data.result || res.data.data;
             
             if (!results || results.length === 0) throw new Error('Video tidak ditemukan.');

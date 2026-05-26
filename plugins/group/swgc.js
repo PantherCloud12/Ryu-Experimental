@@ -50,8 +50,8 @@ module.exports = {
                 }, { quoted: m });
             }
 
-            const targetAdmins = targetMeta.participants.filter(p => !!p.admin).map(p => p.id);
-            const isSenderTargetAdmin = targetAdmins.includes(sender);
+            let targetAdmins = targetMeta.participants.filter(p => !!p.admin).map(p => p.id);
+            let isSenderTargetAdmin = targetAdmins.includes(sender);
 
             // Validation: Sender must be owner or admin in target group
             if (!isOwner && !isSenderTargetAdmin) {
@@ -61,8 +61,18 @@ module.exports = {
             }
 
             // Validation: Bot must be admin in target group
-            const botJid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
-            const isBotTargetAdmin = targetAdmins.includes(botJid);
+            let botJid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
+            if (sock.decodeJid) botJid = sock.decodeJid(sock.user.id);
+            
+            let isBotTargetAdmin = targetAdmins.includes(botJid);
+            
+            // If cache says not admin, try fetching fresh metadata just in case
+            if (!isBotTargetAdmin) {
+                targetMeta = await sock.groupMetadata(targetJid);
+                targetAdmins = targetMeta.participants.filter(p => !!p.admin).map(p => p.id);
+                isBotTargetAdmin = targetAdmins.includes(botJid);
+            }
+
             if (!isBotTargetAdmin) {
                 return await sock.sendMessage(from, {
                     text: `❌ *Bot Bukan Admin!*\n\n⚠️ Bot harus menjadi admin di grup target untuk mengirim status group!`

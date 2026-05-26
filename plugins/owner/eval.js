@@ -21,7 +21,7 @@ module.exports = {
 
         if (!text) return await sock.sendMessage(from, { text: '❌ Masukkan kode javascript untuk dievaluasi!' }, { quoted: m });
         try {
-            let evaled = eval(text);
+            let evaled = await eval(`(async () => { ${text.includes('await') || text.includes('return') ? text : 'return ' + text} })()`);
             if (typeof evaled !== 'string') evaled = require('util').inspect(evaled);
             await sock.sendMessage(from, { text: `💻 *EVAL SUCCESS*\n\n` + '```javascript\n' + evaled + '\n```' }, { quoted: m });
         } catch (err) {

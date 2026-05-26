@@ -18,7 +18,7 @@ module.exports = {
         
         try {
             await sock.sendMessage(from, { text: '⏳ Berpikir...' }, { quoted: m });
-            const response = await axios.get(`https://widipe.com/gpt4?text=Jawablah dengan gaya bahasa anime tsundere pemarah namun perhatian: ${encodeURIComponent(text)}`);
+            const response = await axios.get(`https://api.agatz.xyz/api/gpt4?text=Jawablah dengan gaya bahasa anime tsundere pemarah namun perhatian: ${encodeURIComponent(text)}`);
             const result = response.data.result || response.data.response || response.data.data || response.data;
             
             const replyText = typeof result === 'object' ? JSON.stringify(result, null, 2) : result;

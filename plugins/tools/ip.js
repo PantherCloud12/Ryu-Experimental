@@ -18,7 +18,7 @@ module.exports = {
         
         try {
             await sock.sendMessage(from, { text: '🔍 Mencari...' }, { quoted: m });
-            const res = await axios.get(`https://widipe.com/ip?query=${encodeURIComponent(text)}`);
+            const res = await axios.get(`https://api.agatz.xyz/api/ip?query=${encodeURIComponent(text)}`);
             const result = res.data.result || res.data.data || res.data;
             
             let replyText = '';

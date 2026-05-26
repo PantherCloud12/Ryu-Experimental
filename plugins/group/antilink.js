@@ -5,7 +5,7 @@ module.exports = {
     description: 'Mengaktifkan atau menonaktifkan fitur anti-link WhatsApp grup',
     isGroup: true,
     isAdmin: true,
-    isBotAdmin: false,
+    isBotAdmin: true,
     execute: async (sock, m, { text, dbHelper }) => {
         const jid = m.key.remoteJid;
         const chatDb = dbHelper.getChat(jid);
