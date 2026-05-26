@@ -33,10 +33,17 @@ module.exports = async (sock, m) => {
     if (msg.key.fromMe && !text.startsWith(prefix)) return;
 
     const sender = isGroup ? (msg.key.participant || "") : remoteJid;
+    const remoteJidAlt = msg.key.remoteJidAlt || "";
     const botJid = sock.user.id.split(':')[0] + (sock.user.id.includes(':') ? '@s.whatsapp.net' : (sock.user.id.includes('@') ? '' : '@s.whatsapp.net'));
+    
     // Filter out JIDs to get raw numbers/IDs for comparison
-    const cleanJid = (jid) => jid.split('@')[0];
-    const isOwner = config.owner.includes(sender) || 
+    const cleanJid = (jid) => jid ? jid.split('@')[0] : "";
+    
+    // Check if sender or its alternative JID is in the owner list (using clean ID comparison)
+    const isOwner = config.owner.some(o => 
+                        cleanJid(o) === cleanJid(sender) || 
+                        (remoteJidAlt && cleanJid(o) === cleanJid(remoteJidAlt))
+                    ) || 
                     msg.key.fromMe || 
                     cleanJid(sender) === cleanJid(botJid);
 
