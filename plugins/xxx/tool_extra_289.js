@@ -1,9 +1,0 @@
-module.exports = {
-    name: 'Extra Tool 289',
-    command: ['tool289'],
-    category: 'utility',
-    description: 'Utility tool nomor 289 untuk berbagai keperluan.',
-    execute: async (sock, m) => {
-        await sock.sendMessage(m.key.remoteJid, { text: 'Utility Tool 289 aktif dan siap digunakan!' });
-    }
-};
