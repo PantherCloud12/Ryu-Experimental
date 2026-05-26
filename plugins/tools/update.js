@@ -9,18 +9,28 @@ module.exports = {
     isOwner: true,
     execute: async (sock, m, { config }) => {
         const from = m.key.remoteJid;
-        const projectRoot = path.join(__dirname, '../../');
+        const projectRoot = path.resolve(__dirname, '../../');
+        const cwd = process.cwd();
         
         await sock.sendMessage(from, { text: '⏳ *Sedang memeriksa pembaruan...*' }, { quoted: m });
 
         // Helper to run exec from project root
-        const runGit = (cmd, cb) => exec(cmd, { cwd: projectRoot }, cb);
+        const runGit = (cmd, cb) => {
+            // Coba di projectRoot dulu, kalau gagal mungkin cwd lebih bener
+            exec(cmd, { cwd: projectRoot }, (err, stdout, stderr) => {
+                if (err && err.message.includes('not a git repository')) {
+                    return exec(cmd, { cwd: cwd }, cb);
+                }
+                cb(err, stdout, stderr);
+            });
+        };
 
         // 1. Fetch updates
         runGit('git fetch origin main', (err, stdout, stderr) => {
             if (err) {
                 console.error('Fetch error:', err);
-                return sock.sendMessage(from, { text: `❌ *Gagal mengambil pembaruan:* ${err.message}` }, { quoted: m });
+                const debugInfo = `\n\nDebug: \nRoot: ${projectRoot}\nCWD: ${cwd}`;
+                return sock.sendMessage(from, { text: `❌ *Gagal mengambil pembaruan:* ${err.message}${debugInfo}` }, { quoted: m });
             }
 
             // 2. Check for differences
