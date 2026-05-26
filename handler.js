@@ -170,7 +170,7 @@ module.exports = async (sock, m) => {
         if (plugin.isOwner && !isOwner) {
             // Kita tampilkan detail ID biar tau kenapa gagal
             return await sock.sendMessage(remoteJid, { 
-                text: `❌ *Akses Ditolak!*\n\nID: ${sender}\nAlt: ${isGroup ? participantAlt : remoteJidAlt}\n\n⚠️ Command ini hanya untuk Owner Bot!${config.PROMO_TEXT}` 
+                text: `❌ *Akses Ditolak (${commandName})!*\n\nID: ${sender}\nAlt: ${isGroup ? participantAlt : remoteJidAlt}\n\n⚠️ Command ini hanya untuk Owner Bot!${config.PROMO_TEXT}` 
             }, { quoted: msg });
         }
 
