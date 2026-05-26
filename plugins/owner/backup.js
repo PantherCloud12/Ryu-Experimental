@@ -1,23 +1,21 @@
 // Auto-generated plugin for Category: owner
 // Command: backup
-const axios = require('axios');
+const fs = require('fs');
 
 module.exports = {
     name: 'backup',
-    command: ["backupbot","zipcode"],
+    command: ["backup", "backupbot","zipcode"],
     category: 'owner',
     description: 'Mencadangkan file source code bot ke file ZIP (Owner Only)',
     isGroup: false,
     isAdmin: false,
     isBotAdmin: false,
+    isOwner: true,
     execute: async (sock, m, { text, args, isGroup, sender, groupMetadata, config, dbHelper, quotedMsg }) => {
         const from = m.key.remoteJid;
         const PROMO_TEXT = config.PROMO_TEXT || '';
 
-        const isOwner = config.owner.includes(sender);
-        if (!isOwner) {
-            return await sock.sendMessage(from, { text: '❌ Command ini hanya untuk Owner Bot!' }, { quoted: m });
-        }
+        
 
         const { exec } = require('child_process');
         await sock.sendMessage(from, { text: '⏳ Membuat arsip ZIP source code...' }, { quoted: m });

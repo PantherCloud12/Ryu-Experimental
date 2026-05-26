@@ -1,23 +1,22 @@
 // Auto-generated plugin for Category: owner
 // Command: delplugin
-const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
 
 module.exports = {
     name: 'delplugin',
-    command: ["hapusplugin"],
+    command: ["delplugin", "hapusplugin"],
     category: 'owner',
     description: 'Menghapus file plugin dari server bot (Owner Only)',
     isGroup: false,
     isAdmin: false,
     isBotAdmin: false,
+    isOwner: true,
     execute: async (sock, m, { text, args, isGroup, sender, groupMetadata, config, dbHelper, quotedMsg }) => {
         const from = m.key.remoteJid;
         const PROMO_TEXT = config.PROMO_TEXT || '';
 
-        const isOwner = config.owner.includes(sender);
-        if (!isOwner) {
-            return await sock.sendMessage(from, { text: '❌ Command ini hanya untuk Owner Bot!' }, { quoted: m });
-        }
+        
 
         if (!text) return await sock.sendMessage(from, { text: '❌ Masukkan nama file plugin yang ingin dihapus! (Contoh: owner/eval)' }, { quoted: m });
         try {

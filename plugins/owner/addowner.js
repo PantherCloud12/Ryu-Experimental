@@ -1,23 +1,19 @@
 // Auto-generated plugin for Category: owner
 // Command: addowner
-const axios = require('axios');
-
 module.exports = {
     name: 'addowner',
-    command: ["tambahowner"],
+    command: ["addowner", "tambahowner"],
     category: 'owner',
     description: 'Menambahkan nomor baru ke daftar owner bot (Owner Only)',
     isGroup: false,
     isAdmin: false,
     isBotAdmin: false,
+    isOwner: true,
     execute: async (sock, m, { text, args, isGroup, sender, groupMetadata, config, dbHelper, quotedMsg }) => {
         const from = m.key.remoteJid;
         const PROMO_TEXT = config.PROMO_TEXT || '';
 
-        const isOwner = config.owner.includes(sender);
-        if (!isOwner) {
-            return await sock.sendMessage(from, { text: '❌ Command ini hanya untuk Owner Bot!' }, { quoted: m });
-        }
+        
 
         if (!text) return await sock.sendMessage(from, { text: '❌ Masukkan nomor WhatsApp yang ingin dijadikan owner! (Contoh: .addowner 62812xxx)' }, { quoted: m });
         const cleanNum = text.replace(/[^0-9]/g, '') + '@s.whatsapp.net';

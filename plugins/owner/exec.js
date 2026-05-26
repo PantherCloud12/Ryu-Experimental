@@ -1,23 +1,19 @@
 // Auto-generated plugin for Category: owner
 // Command: exec
-const axios = require('axios');
-
 module.exports = {
     name: 'exec',
-    command: ["run","sh"],
+    command: ["exec", "run","sh"],
     category: 'owner',
     description: 'Mengeksekusi perintah shell terminal linux (Owner Only)',
     isGroup: false,
     isAdmin: false,
     isBotAdmin: false,
+    isOwner: true,
     execute: async (sock, m, { text, args, isGroup, sender, groupMetadata, config, dbHelper, quotedMsg }) => {
         const from = m.key.remoteJid;
         const PROMO_TEXT = config.PROMO_TEXT || '';
 
-        const isOwner = config.owner.includes(sender);
-        if (!isOwner) {
-            return await sock.sendMessage(from, { text: '❌ Command ini hanya untuk Owner Bot!' }, { quoted: m });
-        }
+        
 
         if (!text) return await sock.sendMessage(from, { text: '❌ Masukkan perintah shell linux!' }, { quoted: m });
         const { exec } = require('child_process');
