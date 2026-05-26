@@ -206,6 +206,7 @@ module.exports = async (sock, m) => {
 
         // Run plugin
         await plugin.execute(sock, msg, {
+            commandName,
             text: argsRaw,
             args,
             isGroup,

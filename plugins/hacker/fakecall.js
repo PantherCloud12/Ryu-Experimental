@@ -6,12 +6,20 @@ module.exports = {
     isGroup: false,
     isAdmin: false,
     isBotAdmin: false,
-    execute: async (sock, m, { text, args, commandName, config }) => {
+    execute: async (sock, m, { text, args, commandName, config, quotedSender }) => {
         const from = m.key.remoteJid;
-        const target = m.message.extendedTextMessage?.contextInfo?.mentionedJid?.[0] || m.message.extendedTextMessage?.contextInfo?.participant || from;
         
-        // Check if it's a video call request based on command
-        const isVideo = commandName.includes('vc') || (args[0] && args[0].toLowerCase() === 'video');
+        // Robust target detection: mention > reply > manual number > sender
+        let target = m.message.extendedTextMessage?.contextInfo?.mentionedJid?.[0] || quotedSender || from;
+        
+        // Check if first arg is a number
+        if (args[0] && args[0].replace(/[^0-9]/g, '').length > 5) {
+            target = args[0].replace(/[^0-9]/g, '') + '@s.whatsapp.net';
+        }
+        
+        // Check if it's a video call request based on command (safety check for commandName)
+        const cmd = commandName || '';
+        const isVideo = cmd.includes('vc') || (args.join(' ').toLowerCase().includes('video'));
         
         // Define message structure for fake call
         // Note: This uses the protocol message for call notifications
