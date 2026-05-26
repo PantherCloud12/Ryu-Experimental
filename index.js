@@ -10,6 +10,7 @@ const readline = require('readline');
 const fs = require('fs');
 const path = require('path');
 const dbHelper = require('./lib/db');
+const { isMatch } = require('./lib/helper');
 
 // Load database
 dbHelper.load();
@@ -218,19 +219,25 @@ async function startBot() {
         if (!chatDb.welcome) return;
 
         const metadata = await getGroupMetadata(id);
-        if (!metadata) return;
+        const subject = metadata?.subject || 'Grup';
 
         for (const num of participants) {
+            // Check if it's the bot itself being removed
+            const isSelf = isMatch(num, sock.user.id, "", sock.user.lid || "");
+            if (isSelf && action === 'remove') continue; 
+
             let userTag = `@${num.split('@')[0]}`;
             if (action === 'add') {
-                let msgText = chatDb.welcomeMessage
+                let welcomeMsg = chatDb.welcomeMessage || 'Selamat datang @user di grup @subject! Semoga betah ya~ 🎉';
+                let msgText = welcomeMsg
                     .replace(/@user/g, userTag)
-                    .replace(/@subject/g, metadata.subject);
+                    .replace(/@subject/g, subject);
                 await sock.sendMessage(id, { text: msgText, mentions: [num] });
             } else if (action === 'remove') {
-                let msgText = chatDb.byeMessage
+                let byeMsg = chatDb.byeMessage || 'Selamat tinggal @user, semoga hari-harimu menyenangkan... 🚀';
+                let msgText = byeMsg
                     .replace(/@user/g, userTag)
-                    .replace(/@subject/g, metadata.subject);
+                    .replace(/@subject/g, subject);
                 await sock.sendMessage(id, { text: msgText, mentions: [num] });
             }
         }
