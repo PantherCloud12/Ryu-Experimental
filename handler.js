@@ -26,9 +26,11 @@ module.exports = async (sock, m) => {
     const isGroup = remoteJid.endsWith('@g.us');
     
     // Parse message content
+    const msgType = Object.keys(msg.message)[0];
     const conversation = msg.message.conversation;
     const extendedText = msg.message.extendedTextMessage?.text;
-    const text = conversation || extendedText || "";
+    const caption = msg.message[msgType]?.caption || msg.message[msgType]?.text || "";
+    const text = conversation || extendedText || caption || "";
     
     const prefix = config.prefix || '.';
     if (msg.key.fromMe && !text.startsWith(prefix)) return;
