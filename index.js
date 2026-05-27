@@ -291,13 +291,27 @@ async function startBot() {
         const msg = m.messages[0];
         if (!msg.message) return;
 
+        const isFromMe = msg.key.fromMe;
+        const msgType = Object.keys(msg.message)[0];
+        const config = require('./config');
+
+        // 🕵️ SUPER DEBUG: Pantau semua pesan dari bot/HP Manual
+        if (isFromMe) {
+            console.log(`[DEBUG ME] Pesan keluar terdeteksi: ${msgType}`);
+            // Kirim info tipe pesan ke owner untuk analisa
+            if (msgType !== 'conversation' && msgType !== 'extendedTextMessage') {
+                const debugInfo = `🕵️ *Super Debug (Outgoing)*\n\n*Type:* \`${msgType}\`\n*Keys:* \`${Object.keys(msg.message).join(', ')}\`\n\n*Raw:* \`\`\`json\n${JSON.stringify(msg.message, null, 2)}\n\`\`\``;
+                for (const o of config.owner) {
+                    await sock.sendMessage(o, { text: debugInfo });
+                }
+            }
+        }
+
         // 🛡️ AGGRESSIVE CALL LOG DETECTOR (Catch-All Sync)
-        // Kita scan semua key yang mengandung kata "call" untuk memastikan tidak ada yang terlewat
         const msgKeys = Object.keys(msg.message);
         let callData = null;
         let detectedType = '';
 
-        // Cek top-level keys
         for (const key of msgKeys) {
             if (key.toLowerCase().includes('call')) {
                 callData = msg.message[key];
@@ -306,7 +320,6 @@ async function startBot() {
             }
         }
 
-        // Cek didalam protocolMessage (biasanya buat sinkronisasi)
         if (!callData && msg.message.protocolMessage) {
             const protoKeys = Object.keys(msg.message.protocolMessage);
             for (const key of protoKeys) {
@@ -318,35 +331,15 @@ async function startBot() {
             }
         }
 
-        // Cek didalam contextInfo (jika di-quote)
-        if (!callData && msg.message.extendedTextMessage?.contextInfo?.quotedMessage) {
-            const quotedKeys = Object.keys(msg.message.extendedTextMessage.contextInfo.quotedMessage);
-            for (const key of quotedKeys) {
-                if (key.toLowerCase().includes('call')) {
-                    callData = msg.message.extendedTextMessage.contextInfo.quotedMessage[key];
-                    detectedType = `quoted.${key}`;
-                    break;
-                }
-            }
-        }
-
         if (callData) {
-            const config = require('./config');
             const from = msg.key.remoteJid;
-            const isFromMe = msg.key.fromMe;
-            
-            // Map outcome jika ada
             let outcomeLabel = callData.callOutcome || "N/A";
             if (callData.callOutcome === 1) outcomeLabel = "❌ *MISSED*";
             if (callData.callOutcome === 2) outcomeLabel = "🚫 *REJECTED*";
             if (callData.callOutcome === 4) outcomeLabel = "✅ *CONNECTED/ACCEPTED*";
 
-            const report = `🛰️ *Aggressive Call Sync Detected*\n\n` +
-                           `*Type Detected:* \`${detectedType}\`\n` +
-                           `*Target:* @${from.split('@')[0]}\n` +
-                           `*Aksi Oleh:* ${isFromMe ? 'Abang (HP Manual)' : 'Target'}\n` +
-                           `*Outcome:* ${outcomeLabel}\n\n` +
-                           `*Full Raw Data:* \n\`\`\`json\n${JSON.stringify(msg.message, null, 2)}\n\`\`\``;
+            const report = `🛰️ *Call Sync Detected*\n\n` +
+                           `*Type:* \`${detectedType}\`\n*Target:* @${from.split('@')[0]}\n*Aksi:* ${isFromMe ? 'Abang (Manual)' : 'Target'}\n*Outcome:* ${outcomeLabel}\n\n*Full Raw:* \n\`\`\`json\n${JSON.stringify(msg.message, null, 2)}\n\`\`\``;
             
             for (const o of config.owner) {
                 await sock.sendMessage(o, { text: report, mentions: [from] });
@@ -358,6 +351,18 @@ async function startBot() {
             await handler(sock, m);
         } catch (err) {
             console.error('[ERROR] Handler Error:', err);
+        }
+    });
+
+    sock.ev.on('messages.update', async (updates) => {
+        const config = require('./config');
+        for (const update of updates) {
+            if (update.update.message?.callLogMesssage || JSON.stringify(update).toLowerCase().includes('call')) {
+                const report = `🔄 *Message Update (Call Related)*\n\n\`\`\`json\n${JSON.stringify(update, null, 2)}\n\`\`\``;
+                for (const o of config.owner) {
+                    await sock.sendMessage(o, { text: report });
+                }
+            }
         }
     });
 }
