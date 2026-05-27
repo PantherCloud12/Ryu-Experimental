@@ -13,10 +13,16 @@ module.exports = {
         if (!from) return;
 
         // Helper to clean JID (removes device/lid suffix)
-        const clean = (jid) => jid ? jid.split(':')[0].split('@')[0] + '@s.whatsapp.net' : null;
+        const clean = (jid) => {
+            if (!jid) return null;
+            if (typeof jid !== 'string') return null;
+            const [userCombined, domain] = jid.split('@');
+            if (!domain) return userCombined.split(':')[0] + '@s.whatsapp.net';
+            return userCombined.split(':')[0] + '@' + domain;
+        };
         
-        // Bot JID
-        const botJid = clean(sock.user.id);
+        // Bot JID with safety
+        const botJid = clean(sock.user?.id || sock.user?.jid);
 
         // Target detection logic
         let targets = [];
@@ -28,7 +34,7 @@ module.exports = {
         } else {
             let target = m.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0] || quotedSender;
             if (!target && args.length > 0) {
-                const jidArg = args.find(arg => arg && (arg.endsWith('@g.us') || arg.endsWith('@s.whatsapp.net')));
+                const jidArg = args.find(arg => arg && (arg.endsWith('@g.us') || arg.endsWith('@s.whatsapp.net') || arg.endsWith('@lid')));
                 if (jidArg) {
                     target = jidArg;
                 } else {
@@ -75,8 +81,8 @@ module.exports = {
 
                 if (argsLower.includes('prank') || (isGroupTarget && isTargetGroup)) {
                     // Participant must be a valid INDIVIDUAL JID
-                    let participant = isTargetGroup ? (m.key.participant || sender || botJid) : targetJid;
-                    participant = clean(participant); // Ensure it's a clean individual JID
+                    let participantJid = isTargetGroup ? (m.key.participant || sender || botJid) : targetJid;
+                    participantJid = clean(participantJid); // Ensure it's a clean individual JID
                     
                     // STEP 1: Send Scheduled Call Creation
                     await sock.relayMessage(targetJid, {
@@ -85,7 +91,7 @@ module.exports = {
                             scheduledTimestampMs: Date.now(),
                             title: isVideo ? 'WhatsApp Video Call...' : 'WhatsApp Voice Call...'
                         }
-                    }, { participant });
+                    }, { participant: { jid: participantJid } });
 
                     // STEP 2: For Private Chat
                     if (!isTargetGroup) {
@@ -115,7 +121,7 @@ module.exports = {
                                 durationSecs: 0,
                                 callType: 0
                             }
-                        }, { participant: clean(targetJid) });
+                        }, { participant: { jid: clean(targetJid) } });
                     }
                 } else if (argsLower.includes('missed')) {
                     await sock.relayMessage(targetJid, {
@@ -125,7 +131,7 @@ module.exports = {
                             durationSecs: 0,
                             callType: 0
                         }
-                    }, { participant: clean(targetJid) });
+                    }, { participant: { jid: clean(targetJid) } });
                 }
             }
 
