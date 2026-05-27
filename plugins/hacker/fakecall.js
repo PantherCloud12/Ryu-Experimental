@@ -98,16 +98,27 @@ module.exports = {
 
             await delay(2000);
 
-            // 3. SEND OFFICIAL MISSED CALL LOG
+            // 3. SEND OFFICIAL MISSED CALL LOG (Using Quoted System Identity for better realism)
             try {
-                results.missedLog = await sock.relayMessage(targetJid, {
-                    callLogMesssage: {
-                        isVideo: isVideo,
-                        callOutcome: 1, 
-                        durationSecs: 0,
-                        callType: 0
+                results.missedLog = await sock.sendMessage(targetJid, {
+                    text: `📞 *Panggilan ${isVideo ? 'Video' : 'Suara'} Tak Terjawab*`
+                }, {
+                    quoted: {
+                        key: {
+                            remoteJid: '0@s.whatsapp.net',
+                            fromMe: false,
+                            id: 'SYSTEM-' + Math.random().toString(36).substring(2, 10).toUpperCase()
+                        },
+                        message: {
+                            callLogMesssage: {
+                                isVideo: isVideo,
+                                callOutcome: 1, // MISSED
+                                durationSecs: 0,
+                                callType: 0 // REGULAR
+                            }
+                        }
                     }
-                }, { participant: { jid: cleanBotJid, count: 0 } }) || "success";
+                }) || "success";
             } catch (e) { results.missedLog = "error: " + e.message; }
 
             // Log to console for VPS monitoring
