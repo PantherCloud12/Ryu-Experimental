@@ -22,9 +22,6 @@ module.exports = {
             return user + '@' + domain;
         };
 
-        const botJid = sock.user.id; // Full JID with device for creator
-        const cleanBotJid = clean(botJid);
-
         // Target detection
         let targetJid = null;
         const argsLower = args.join(' ').toLowerCase();
@@ -44,49 +41,9 @@ module.exports = {
         const isVideo = commandName.toLowerCase().includes('vc') || argsLower.includes('video');
 
         try {
-            // STEP 1: TRIGGER REAL CALL SIGNAL (Raw Node)
-            // Ini adalah metode paling hardcore untuk membuat HP target berdering
-            await sock.sendNode({
-                tag: 'call',
-                attrs: {
-                    to: targetJid,
-                    from: botJid,
-                    id: sock.generateMessageTag(),
-                    t: Math.floor(Date.now() / 1000).toString()
-                },
-                content: [
-                    {
-                        tag: 'offer',
-                        attrs: {
-                            'call-id': 'CA' + Math.random().toString(36).substring(7).toUpperCase(),
-                            'call-creator': botJid,
-                            'count': '0'
-                        },
-                        content: [
-                            { tag: 'audio', attrs: { enc: 'opus', rate: '16000' }, content: undefined },
-                            { tag: 'net', attrs: { medium: '3' }, content: undefined },
-                            { tag: 'capability', attrs: { ver: '1' }, content: Buffer.from([1, 4, 2, 5]) }
-                        ]
-                    }
-                ]
-            });
-
-            // STEP 2: SEND CALL INVITE BUBBLE (For Group and Private)
-            await sock.relayMessage(targetJid, {
-                scheduledCallCreationMessage: {
-                    callType: isVideo ? 2 : 1,
-                    scheduledTimestampMs: Date.now(),
-                    title: isVideo ? 'WhatsApp Video Call...' : 'WhatsApp Voice Call...'
-                }
-            }, { 
-                participant: { jid: cleanBotJid, count: 0 }
-            });
-
-            // STEP 3: WAIT FOR RINGING
-            await delay(5000);
-
-            // STEP 4: SEND OFFICIAL MISSED CALL LOG (System Style)
-            await sock.sendMessage(targetJid, {
+            // METODE FAKECALL TERBAIK (QUOTED SYSTEM)
+            // Menghasilkan log "Panggilan Tak Terjawab" yang seolah dari Sistem (0@s.whatsapp.net)
+            const result = await sock.sendMessage(targetJid, {
                 text: `📞 *Panggilan ${isVideo ? 'Video' : 'Suara'} Tak Terjawab*`,
             }, {
                 quoted: {
@@ -99,13 +56,17 @@ module.exports = {
                         callLogMessage: {
                             isPreVOD: false,
                             video: isVideo, 
-                            callStatus: 1, 
+                            callStatus: 1, // 1: Missed
                         }
                     }
                 }
             });
 
-            await sock.sendMessage(from, { text: `✅ *Real Call Prank* (Nelpon) berhasil dikirim ke ${isTargetGroup ? 'Grup' : '@' + targetJid.split('@')[0]}`, mentions: [targetJid] }, { quoted: m });
+            // Kasih respon murni sesuai permintaan user
+            const pureResponse = JSON.stringify(result, null, 2);
+            await sock.sendMessage(from, { 
+                text: `✅ *Fake Call Processed*\n\n*Pure Response:*\n\`\`\`json\n${pureResponse}\n\`\`\`` 
+            }, { quoted: m });
 
         } catch (e) {
             console.error('FakeCall Error:', e);
