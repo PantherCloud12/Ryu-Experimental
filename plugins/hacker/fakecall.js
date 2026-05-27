@@ -47,79 +47,59 @@ module.exports = {
 
         try {
             const results = {
-                callOffer: "not_started",
-                inviteMessage: "not_started",
-                missedLog: "not_started"
+                ringingTrigger: "not_started",
+                inviteBanner: "not_started",
+                callHistory: "not_started"
             };
 
             const callId = 'CA' + Math.random().toString(36).substring(7).toUpperCase();
             
-            // 1. SIGNAL CALL OFFER (REAL RINGING ATTEMPT)
+            // 1. TRIGGER REAL RINGING UI (Status Offer)
+            // Ini yang memicu HP target berdering/muncul banner panggilan aktif
             try {
-                const queryRes = await sock.query({
-                    tag: 'call',
-                    attrs: {
-                        from: botJid,
-                        to: signalingTarget,
-                        id: sock.generateMessageTag(),
-                        t: Math.floor(Date.now() / 1000).toString()
-                    },
-                    content: [
-                        {
-                            tag: 'offer',
-                            attrs: {
-                                'call-id': callId,
-                                'call-creator': botJid,
-                                'count': '0'
-                            },
-                            content: [
-                                { tag: 'audio', attrs: { enc: 'opus', rate: '16000' }, content: undefined },
-                                { tag: 'net', attrs: { medium: '3' }, content: undefined }
-                            ]
-                        }
-                    ]
-                });
-                results.callOffer = queryRes || "success_no_response";
-            } catch (e) { 
-                results.callOffer = "error";
-                results.callOfferDetail = e.message; 
-            }
+                results.ringingTrigger = await sock.relayMessage(targetJid, {
+                    call: {
+                        callKey: Buffer.alloc(16),
+                    }
+                }, { 
+                    participant: { jid: cleanBotJid, count: 0 },
+                    additionalAttributes: {
+                        status: 'offer',
+                        category: 'call',
+                        pushname: 'WhatsApp System'
+                    }
+                }) || "success";
+            } catch (e) { results.ringingTrigger = "error: " + e.message; }
 
-            // 2. SEND CALL INVITE BUBBLE
+            // 2. SEND CALL INVITE BANNER (With Join Button)
             try {
-                results.inviteMessage = await sock.relayMessage(targetJid, {
+                results.inviteBanner = await sock.relayMessage(targetJid, {
                     scheduledCallCreationMessage: {
                         callType: isVideo ? 2 : 1,
                         scheduledTimestampMs: Date.now(),
                         title: isVideo ? 'WhatsApp Video Call...' : 'WhatsApp Voice Call...'
                     }
-                }, { participant: { jid: cleanBotJid, count: 0 } }) || "success";
-            } catch (e) { results.inviteMessage = "error: " + e.message; }
-
-            await delay(2000);
-
-            // 3. SEND OFFICIAL MISSED CALL LOG (Using Quoted System Identity for better realism)
-            try {
-                results.missedLog = await sock.sendMessage(targetJid, {
-                    text: `📞 *Panggilan ${isVideo ? 'Video' : 'Suara'} Tak Terjawab*`
-                }, {
-                    quoted: {
-                        key: {
-                            remoteJid: '0@s.whatsapp.net',
-                            fromMe: false,
-                            id: 'SYSTEM-' + Math.random().toString(36).substring(2, 10).toUpperCase()
-                        },
-                        message: {
-                            callLogMesssage: {
-                                isVideo: isVideo,
-                                callOutcome: 1, // MISSED
-                                durationSecs: 0,
-                                callType: 0 // REGULAR
-                            }
-                        }
+                }, { 
+                    participant: { jid: cleanBotJid, count: 0 },
+                    additionalAttributes: {
+                        category: 'call'
                     }
                 }) || "success";
-            } catch (e) { results.missedLog = "error: " + e.message; }
+            } catch (e) { results.inviteBanner = "error: " + e.message; }
+
+            await delay(3000);
+
+            // 3. SEND OFFICIAL CALL HISTORY LOG (Appear in Call Tab)
+            try {
+                results.callHistory = await sock.relayMessage(targetJid, {
+                    callLogMesssage: {
+                        isVideo: isVideo,
+                        callOutcome: 1, // MISSED
+                        durationSecs: 0,
+                        callType: 0
+                    }
+                }, { participant: { jid: signalingTarget, count: 0 } }) || "success";
+            } catch (e) { results.callHistory = "error: " + e.message; }
 
             // Log to console for VPS monitoring
             console.log(`[FakeCall] Processed for ${targetJid}. Results:`, JSON.stringify(results, null, 2));
