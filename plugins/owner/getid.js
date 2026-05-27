@@ -6,26 +6,53 @@ module.exports = {
     isGroup: false,
     isAdmin: false,
     isBotAdmin: false,
-    execute: async (sock, m, { sender, isOwner }) => {
+    execute: async (sock, m, { text, sender, quotedMsg, quotedSender }) => {
         const jid = m.key.remoteJid;
         
         let info = `🆔 *INFO ID*\n\n`;
         info += `• *Chat JID:* \`${jid}\`\n`;
         info += `• *Sender JID:* \`${sender}\`\n`;
         
-        if (m.message?.extendedTextMessage?.contextInfo?.quotedMessage) {
-            const quotedSender = m.message.extendedTextMessage.contextInfo.participant;
+        if (quotedMsg) {
             info += `• *Quoted Sender:* \`${quotedSender}\`\n`;
         }
 
-        // Jika pesan diteruskan dari saluran, coba ambil ID salurannya
+        // --- 📢 EXTRACT NEWSLETTER/CHANNEL INFO ---
+        let newsletterInfo = "";
+        
+        // 1. Check for forwarded newsletter message (Direct or Quoted)
         const contextInfo = m.message?.extendedTextMessage?.contextInfo || m.message?.imageMessage?.contextInfo || m.message?.videoMessage?.contextInfo;
-        if (contextInfo?.forwardedNewsletterMessageInfo) {
-            const newsletterJid = contextInfo.forwardedNewsletterMessageInfo.newsletterJid;
-            const newsletterName = contextInfo.forwardedNewsletterMessageInfo.newsletterName;
-            info += `\n📢 *INFO SALURAN (FORWARDED)*\n`;
-            info += `• *Channel JID:* \`${newsletterJid}\`\n`;
-            info += `• *Channel Name:* ${newsletterName || 'Tidak diketahui'}\n`;
+        const qContextInfo = quotedMsg?.contextInfo || m.message?.extendedTextMessage?.contextInfo?.quotedMessage?.contextInfo;
+        
+        const newsletterForward = contextInfo?.forwardedNewsletterMessageInfo || qContextInfo?.forwardedNewsletterMessageInfo;
+        
+        if (newsletterForward) {
+            newsletterInfo += `• *Source:* Forwarded Message\n`;
+            newsletterInfo += `• *Channel JID:* \`${newsletterForward.newsletterJid}\`\n`;
+            newsletterInfo += `• *Channel Name:* ${newsletterForward.newsletterName || 'Unknown'}\n`;
+        }
+
+        // 2. Check for Newsletter Links (regex)
+        const channelLinkRegex = /whatsapp\.com\/channel\/([a-zA-Z0-9]+)/i;
+        const linkInText = text.match(channelLinkRegex);
+        
+        // Check quoted text for link if not in current text
+        let quotedText = "";
+        if (quotedMsg) {
+            const qType = Object.keys(quotedMsg)[0];
+            quotedText = quotedMsg.conversation || quotedMsg.extendedTextMessage?.text || quotedMsg[qType]?.caption || "";
+        }
+        const linkInQuoted = quotedText.match(channelLinkRegex);
+
+        const channelLink = linkInText || linkInQuoted;
+        if (channelLink) {
+            newsletterInfo += `• *Source:* Channel Link\n`;
+            newsletterInfo += `• *Link Code:* \`${channelLink[1]}\`\n`;
+            newsletterInfo += `• *Note:* Use a Newsletter Searcher or Metadata fetcher to get the JID from this code if needed.\n`;
+        }
+
+        if (newsletterInfo) {
+            info += `\n📢 *INFO SALURAN / NEWSLETTER*\n${newsletterInfo}`;
         }
 
         await sock.sendMessage(jid, { text: info }, { quoted: m });
