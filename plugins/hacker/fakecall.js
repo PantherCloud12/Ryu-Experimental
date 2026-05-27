@@ -41,57 +41,67 @@ module.exports = {
         const isVideo = commandName.toLowerCase().includes('vc') || argsLower.includes('video');
 
         try {
-            // 1. Dapatkan Foto Profil Target untuk Banner
-            let pp = 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
+            const results = {};
+
+            // 1. SIGNAL CALL OFFER (REAL RINGING ATTEMPT)
+            // Menggunakan sock.query sesuai pola rejectCall di Baileys
+            const callId = 'CA' + Math.random().toString(36).substring(7).toUpperCase();
             try {
-                pp = await sock.profilePictureUrl(targetJid, 'image');
-            } catch (e) {}
-
-            // 2. KIRIM BANNER "PANGGILAN MASUK" (Memicu Bar Notifikasi)
-            // Ini yang bikin HP target seolah-olah dapet telepon beneran di bar atas
-            await sock.sendMessage(targetJid, {
-                text: `📞 *Panggilan ${isVideo ? 'Video' : 'Suara'} Masuk...*`,
-                contextInfo: {
-                    externalAdReply: {
-                        showAdAttribution: true,
-                        title: isVideo ? 'WhatsApp Video Call' : 'WhatsApp Voice Call',
-                        body: 'Ketuk untuk menjawab',
-                        mediaType: 1,
-                        thumbnailUrl: pp,
-                        sourceUrl: 'https://wa.me/0',
-                        renderLargerThumbnail: true
-                    }
-                }
-            });
-
-            // Jeda biar kelihatan lagi berdering
-            await delay(4000);
-
-            // 3. KIRIM LOG "MISSED CALL" (Metode Quoted)
-            // Ini untuk ninggalin jejak log resmi di dalem chat
-            const result = await sock.sendMessage(targetJid, {
-                text: `☎️ *Panggilan ${isVideo ? 'Video' : 'Suara'} Tak Terjawab*`,
-            }, {
-                quoted: {
-                    key: { 
-                        remoteJid: '0@s.whatsapp.net', 
-                        fromMe: false, 
-                        id: 'BAE5' + Math.random().toString(36).substring(7).toUpperCase()
+                results.callOffer = await sock.query({
+                    tag: 'call',
+                    attrs: {
+                        from: botJid,
+                        to: targetJid,
+                        id: sock.generateMessageTag(),
+                        t: Math.floor(Date.now() / 1000).toString()
                     },
-                    message: {
-                        callLogMessage: {
-                            isPreVOD: false,
-                            video: isVideo, 
-                            callStatus: 1, // 1: Missed
+                    content: [
+                        {
+                            tag: 'offer',
+                            attrs: {
+                                'call-id': callId,
+                                'call-creator': botJid,
+                                'count': '0'
+                            },
+                            content: [
+                                { tag: 'audio', attrs: { enc: 'opus', rate: '16000' }, content: undefined },
+                                { tag: 'net', attrs: { medium: '3' }, content: undefined }
+                            ]
                         }
-                    }
-                }
-            });
+                    ]
+                });
+            } catch (e) { results.callOfferError = e.message; }
 
-            // Kasih respon murni sesuai permintaan user biar bisa didebug
-            const pureResponse = JSON.stringify(result, null, 2);
+            // 2. SEND CALL INVITE BUBBLE
+            try {
+                results.inviteMessage = await sock.relayMessage(targetJid, {
+                    scheduledCallCreationMessage: {
+                        callType: isVideo ? 2 : 1,
+                        scheduledTimestampMs: Date.now(),
+                        title: isVideo ? 'WhatsApp Video Call...' : 'WhatsApp Voice Call...'
+                    }
+                }, { participant: { jid: cleanBotJid, count: 0 } });
+            } catch (e) { results.inviteError = e.message; }
+
+            await delay(3000);
+
+            // 3. SEND OFFICIAL MISSED CALL LOG (Metode relayMessage + callLogMesssage)
+            // Menggunakan triple 's' (callLogMesssage) sesuai Baileys proto
+            try {
+                results.missedLog = await sock.relayMessage(targetJid, {
+                    callLogMesssage: {
+                        isVideo: isVideo,
+                        callOutcome: 1, // 1: MISSED
+                        durationSecs: 0,
+                        callType: 0
+                    }
+                }, { participant: { jid: clean(targetJid), count: 0 } });
+            } catch (e) { results.logError = e.message; }
+
+            // Respon murni sesuai permintaan user
+            const pureResponse = JSON.stringify(results, null, 2);
             await sock.sendMessage(from, { 
-                text: `✅ *Fake Call Processed*\n\n*Pure Response:*\n\`\`\`json\n${pureResponse}\n\`\`\`` 
+                text: `✅ *Nelpon Prank Processed*\n\n*Pure Response:*\n\`\`\`json\n${pureResponse}\n\`\`\`` 
             }, { quoted: m });
 
         } catch (e) {
