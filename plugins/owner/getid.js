@@ -1,7 +1,7 @@
 module.exports = {
     name: 'getid',
     command: ['getid', 'jid'],
-    category: 'owner',
+    category: 'debug',
     description: 'Mendapatkan ID Chat/Saluran/Grup saat ini',
     isGroup: false,
     isAdmin: false,
