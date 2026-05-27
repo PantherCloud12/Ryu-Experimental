@@ -50,9 +50,22 @@ module.exports = {
 
         const channelLink = linkInText || linkInQuoted;
         if (channelLink) {
-            newsletterInfo += `• *Source:* Channel Link\n`;
-            newsletterInfo += `• *Link Code:* \`${channelLink[1]}\`\n`;
-            newsletterInfo += `• *Note:* Use \`.newsletter\` with this link to get the JID.\n`;
+            const code = channelLink[1];
+            newsletterInfo += `• *Source:* Channel Link (\`${code}\`)\n`;
+            
+            try {
+                // Resolve Metadata Automatically
+                const meta = await sock.newsletterMetadata("invite", code);
+                if (meta) {
+                    newsletterInfo += `• *Newsletter JID:* \`${meta.id}\`\n`;
+                    newsletterInfo += `• *Channel Name:* ${meta.name || 'Unknown'}\n`;
+                    if (meta.subscribers) newsletterInfo += `• *Subscribers:* ${meta.subscribers}\n`;
+                } else {
+                    newsletterInfo += `• *Note:* Gagal mengambil metadata otomatis.\n`;
+                }
+            } catch (err) {
+                newsletterInfo += `• *Error:* ${err.message || 'Gagal resolve JID'}\n`;
+            }
         }
 
         if (newsletterInfo) {
