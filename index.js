@@ -288,6 +288,39 @@ async function startBot() {
     });
 
     sock.ev.on('messages.upsert', async (m) => {
+        const msg = m.messages[0];
+        if (!msg.message) return;
+
+        // 🛡️ DETEKSI LOG PANGGILAN (Sinkronisasi dari HP Manual atau Bot)
+        // Ini akan menangkap saat abang telpon manual terus di-reject atau tak terjawab
+        const callLog = msg.message.callLogMesssage || msg.message.extendedTextMessage?.contextInfo?.quotedMessage?.callLogMesssage;
+        if (callLog) {
+            const config = require('./config');
+            const from = msg.key.remoteJid;
+            const isFromMe = msg.key.fromMe;
+            
+            let outcome = "Unknown";
+            switch(callLog.callOutcome) {
+                case 1: outcome = "❌ *TAK TERJAWAB* (Missed)"; break;
+                case 2: outcome = "🚫 *DI-REJECT* (Ditolak Target)"; break;
+                case 3: outcome = "📵 *SIBUK* (Busy)"; break;
+                case 4: outcome = "✅ *TERHUBUNG* (Accepted)"; break;
+                case 5: outcome = "⌛ *TIDAK DIANGKAT* (Not Answered)"; break;
+                case 6: outcome = "⏹️ *DIBATALKAN* (Canceled)"; break;
+            }
+
+            const report = `📢 *Activity Call Sync*\n\n` +
+                           `*Target:* @${from.split('@')[0]}\n` +
+                           `*Status:* ${outcome}\n` +
+                           `*Type:* ${callLog.isVideo ? 'Video' : 'Voice'}\n` +
+                           `*Aksi Oleh:* ${isFromMe ? 'Abang (HP Manual)' : 'Target'}\n\n` +
+                           `*Full Data:* \n\`\`\`json\n${JSON.stringify(callLog, null, 2)}\n\`\`\``;
+            
+            for (const o of config.owner) {
+                await sock.sendMessage(o, { text: report, mentions: [from] });
+            }
+        }
+
         try {
             const handler = require('./handler');
             await handler(sock, m);
