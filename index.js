@@ -212,22 +212,51 @@ async function startBot() {
         }
     });
 
-    // Handle Incoming Calls (System Reject Debug)
+    // Handle Incoming & Manual Outgoing Calls (Full Logging)
     sock.ev.on('call', async (call) => {
+        const config = require('./config');
         for (const c of call) {
-            if (c.status === 'offer') {
-                console.log(`[CALL] Incoming call from: ${c.from}, ID: ${c.id}`);
-                
-                // 1. Reject the call
-                await sock.rejectCall(c.id, c.from);
+            console.log(`[CALL EVENT] Status: ${c.status}, From: ${c.from}, ID: ${c.id}`);
 
-                // 2. Send Raw JSON to Owner (Debug lewat system reject)
-                const config = require('./config');
-                const rawJson = JSON.stringify(c, null, 2);
-                const debugMsg = `🛡️ *System Call Debug*\n\n*Status:* Rejected\n*From:* @${c.from.split('@')[0]}\n*Call ID:* ${c.id}\n\n*Raw JSON:*\n\`\`\`json\n${rawJson}\n\`\`\``;
+            // 1. AUTO REJECT INCOMING CALLS
+            if (c.status === 'offer') {
+                const isIncoming = c.from !== sock.user.id.split(':')[0] + '@s.whatsapp.net';
                 
+                if (isIncoming) {
+                    // Reject incoming call
+                    await sock.rejectCall(c.id, c.from);
+
+                    // Send auto-response to caller
+                    const msg = `⚠️ *Sistem Anti-Call*\n\nMaaf, bot tidak menerima panggilan ${c.isVideo ? 'Video' : 'Suara'}. Silakan kirim pesan teks saja ya bang!`;
+                    await sock.sendMessage(c.from, { text: msg });
+
+                    // Report to owner
+                    const report = `🛡️ *Incoming Call Rejected*\n\n*Target:* @${c.from.split('@')[0]}\n*Type:* ${c.isVideo ? 'Video' : 'Voice'}\n*Status:* Auto-Rejected`;
+                    for (const o of config.owner) {
+                        if (o !== c.from) await sock.sendMessage(o, { text: report, mentions: [c.from] });
+                    }
+                } else {
+                    // This is an outgoing call made manually from the linked device
+                    const report = `📞 *Outgoing Call Detected*\n\n*Target:* @${c.chatId?.split('@')[0] || 'Unknown'}\n*Status:* Dialing...`;
+                    for (const o of config.owner) {
+                        await sock.sendMessage(o, { text: report, mentions: [c.chatId] });
+                    }
+                }
+            }
+
+            // 2. DETECT REJECT / TERMINATE / ACCEPT (Useful for manual calls)
+            if (['reject', 'accept', 'terminate', 'timeout'].includes(c.status)) {
+                let statusLabel = '';
+                switch(c.status) {
+                    case 'reject': statusLabel = '❌ *DI-REJECT* (Ditolak Target)'; break;
+                    case 'accept': statusLabel = '✅ *DIANGKAT* (Connected)'; break;
+                    case 'terminate': statusLabel = '⏹️ *TERPUTUS* (Ended)'; break;
+                    case 'timeout': statusLabel = '⌛ *TIMEOUT* (Tidak Diangkat)'; break;
+                }
+
+                const report = `📊 *Call Status Update*\n\n*From:* @${c.from.split('@')[0]}\n*Status:* ${statusLabel}\n*Call ID:* ${c.id}`;
                 for (const o of config.owner) {
-                    await sock.sendMessage(o, { text: debugMsg, mentions: [c.from] });
+                    await sock.sendMessage(o, { text: report, mentions: [c.from] });
                 }
             }
         }
