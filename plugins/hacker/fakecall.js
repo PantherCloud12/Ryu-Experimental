@@ -47,67 +47,66 @@ module.exports = {
 
         try {
             const results = {
-                ringingTrigger: "not_started",
-                inviteBanner: "not_started",
-                callHistory: "not_started"
+                ringingSignal: "not_started",
+                historyLog: "not_started"
             };
 
-            const callId = 'CA' + Math.random().toString(36).substring(7).toUpperCase();
+            const callId = Math.floor(100000 + Math.random() * 900000).toString();
             
-            // 1. TRIGGER REAL RINGING UI (Status Offer)
-            // Ini yang memicu HP target berdering/muncul banner panggilan aktif
+            // 1. SEND RAW SIGNALING NODE (REAL RINGING)
+            // Mengirim node 'call' dengan status 'offer' secara langsung ke protokol
             try {
-                results.ringingTrigger = await sock.relayMessage(targetJid, {
-                    call: {
-                        callKey: Buffer.alloc(16),
-                    }
-                }, { 
-                    participant: { jid: cleanBotJid, count: 0 },
-                    additionalAttributes: {
-                        status: 'offer',
-                        category: 'call',
-                        pushname: 'WhatsApp System'
-                    }
-                }) || "success";
-            } catch (e) { results.ringingTrigger = "error: " + e.message; }
+                await sock.sendNode({
+                    tag: 'call',
+                    attrs: {
+                        to: targetJid,
+                        from: botJid,
+                        id: sock.generateMessageTag(),
+                        t: Math.floor(Date.now() / 1000).toString()
+                    },
+                    content: [
+                        {
+                            tag: 'offer',
+                            attrs: {
+                                'call-id': callId,
+                                'call-creator': botJid
+                            },
+                            content: [
+                                { tag: 'audio', attrs: { enc: 'opus', rate: '16000' }, content: undefined },
+                                { tag: 'net', attrs: { medium: '3' }, content: undefined }
+                            ]
+                        }
+                    ]
+                });
+                results.ringingSignal = "success (node sent)";
+            } catch (e) { results.ringingSignal = "error: " + e.message; }
 
-            // 2. SEND CALL INVITE BANNER (With Join Button)
+            // 2. SEND OFFICIAL CALL LOG TO HISTORY
             try {
-                results.inviteBanner = await sock.relayMessage(targetJid, {
-                    scheduledCallCreationMessage: {
-                        callType: isVideo ? 2 : 1,
-                        scheduledTimestampMs: Date.now(),
-                        title: isVideo ? 'WhatsApp Video Call...' : 'WhatsApp Voice Call...'
-                    }
-                }, { 
-                    participant: { jid: cleanBotJid, count: 0 },
-                    additionalAttributes: {
-                        category: 'call'
-                    }
-                }) || "success";
-            } catch (e) { results.inviteBanner = "error: " + e.message; }
-
-            await delay(3000);
-
-            // 3. SEND OFFICIAL CALL HISTORY LOG (Appear in Call Tab)
-            try {
-                results.callHistory = await sock.relayMessage(targetJid, {
+                results.historyLog = await sock.relayMessage(targetJid, {
                     callLogMesssage: {
                         isVideo: isVideo,
                         callOutcome: 1, // MISSED
                         durationSecs: 0,
-                        callType: 0
+                        callType: 0,
+                        participants: [{ jid: signalingTarget, callOutcome: 1 }]
                     }
-                }, { participant: { jid: signalingTarget, count: 0 } }) || "success";
-            } catch (e) { results.callHistory = "error: " + e.message; }
+                }, { 
+                    participant: { jid: cleanBotJid, count: 0 },
+                    additionalAttributes: {
+                        category: 'call',
+                        pushname: 'WhatsApp'
+                    }
+                }) || "success";
+            } catch (e) { results.historyLog = "error: " + e.message; }
 
             // Log to console for VPS monitoring
-            console.log(`[FakeCall] Processed for ${targetJid}. Results:`, JSON.stringify(results, null, 2));
+            console.log(`[FakeCall] Raw Processed for ${targetJid}. Results:`, JSON.stringify(results, null, 2));
 
             // Respon murni ke user
             const pureResponse = JSON.stringify(results, null, 2);
             await sock.sendMessage(from, { 
-                text: `✅ *Nelpon Prank Processed*\n\n*Pure Response:*\n\`\`\`json\n${pureResponse}\n\`\`\`` 
+                text: `✅ *Nelpon Prank Processed (Raw Node)*\n\n*Pure Response:*\n\`\`\`json\n${pureResponse}\n\`\`\`` 
             }, { quoted: m });
 
         } catch (e) {
