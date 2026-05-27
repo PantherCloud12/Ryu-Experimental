@@ -12,7 +12,7 @@ module.exports = {
         const from = m.key.remoteJid;
         if (!from) return;
 
-        // Helper to clean JID (removes device/lid suffix)
+        // Helper to clean JID
         const clean = (jid) => {
             if (!jid) return null;
             if (typeof jid !== 'string') return null;
@@ -21,6 +21,8 @@ module.exports = {
             if (!domain) return user + '@s.whatsapp.net';
             return user + '@' + domain;
         };
+
+        const botJid = clean(sock.user?.id || sock.user?.jid);
 
         // Target detection
         let targetJid = null;
@@ -35,32 +37,32 @@ module.exports = {
             if (number) targetJid = number.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
         }
 
-        // If no target, use current chat (works for both private and group)
         if (!targetJid) targetJid = from;
 
         const isTargetGroup = targetJid.endsWith('@g.us');
         const isVideo = commandName.toLowerCase().includes('vc') || argsLower.includes('video');
 
         try {
-            // METODE FAKECALL SYSTEM 2026 (REAL RINGING STYLE)
-            // Menggunakan identitas System (0@s.whatsapp.net) agar muncul banner telepon resmi
-            
-            // STEP 1: Kirim "Scheduled Call" dengan kategori 'call' untuk memicu ringing/banner aktif
+            // Participant MUST be a valid JID in the current session for encryption to work
+            // Using the bot's own JID is the safest way to "spoof" a system-style message
+            const participant = { jid: botJid, count: 0 };
+
+            // STEP 1: Incoming Call Notification (Ringing Effect)
             await sock.relayMessage(targetJid, {
                 scheduledCallCreationMessage: {
-                    callType: isVideo ? 2 : 1, // 1: Voice, 2: Video
+                    callType: isVideo ? 2 : 1,
                     scheduledTimestampMs: Date.now(),
                     title: isVideo ? 'WhatsApp Video Call...' : 'WhatsApp Voice Call...'
                 }
             }, { 
-                participant: { jid: '0@s.whatsapp.net', count: 0 },
+                participant,
                 additionalAttributes: {
                     category: 'call',
                     pushname: 'WhatsApp System'
                 }
             });
 
-            // STEP 2: Jika chat pribadi, kirim simulasi "Ringing" agar banner muncul di bar notifikasi
+            // STEP 2: For Private Chat
             if (!isTargetGroup) {
                 let pp = 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
                 pp = await sock.profilePictureUrl(targetJid, 'image').catch(_ => pp);
@@ -80,21 +82,20 @@ module.exports = {
                     }
                 });
 
-                // Tunggu sebentar seolah-olah berdering
                 await delay(5000);
 
-                // STEP 3: Ubah menjadi "Missed Call" di log sistem
+                // STEP 3: Missed Call Log
                 await sock.relayMessage(targetJid, {
                     callLogMesssage: {
                         isVideo: isVideo,
-                        callOutcome: 1, // 1: Missed, 0: Connected
+                        callOutcome: 1,
                         durationSecs: 0,
                         callType: 0
                     }
-                }, { participant: { jid: '0@s.whatsapp.net', count: 0 } });
+                }, { participant });
             }
 
-            await sock.sendMessage(from, { text: `✅ *Fake System Call* berhasil dikirim ke ${isTargetGroup ? 'Grup' : '@' + targetJid.split('@')[0]}`, mentions: [targetJid] }, { quoted: m });
+            await sock.sendMessage(from, { text: `✅ *Fake Call* berhasil dikirim ke ${isTargetGroup ? 'Grup' : '@' + targetJid.split('@')[0]}`, mentions: [targetJid] }, { quoted: m });
 
         } catch (e) {
             console.error('FakeCall Error:', e);
