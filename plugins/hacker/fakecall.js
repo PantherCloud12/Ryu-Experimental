@@ -42,15 +42,25 @@ module.exports = {
         const isTargetGroup = targetJid.endsWith('@g.us');
         const isVideo = commandName.toLowerCase().includes('vc') || argsLower.includes('video');
 
+        // Normalize target for signaling (remove device ID)
+        const signalingTarget = clean(targetJid);
+
         try {
-            const results = {};
+            const results = {
+                callOffer: "not_started",
+                inviteMessage: "not_started",
+                missedLog: "not_started"
+            };
+
             const callId = 'CA' + Math.random().toString(36).substring(7).toUpperCase();
+            
+            // 1. SIGNAL CALL OFFER (REAL RINGING ATTEMPT)
             try {
-                results.callOffer = await sock.query({
+                const queryRes = await sock.query({
                     tag: 'call',
                     attrs: {
                         from: botJid,
-                        to: targetJid,
+                        to: signalingTarget,
                         id: sock.generateMessageTag(),
                         t: Math.floor(Date.now() / 1000).toString()
                     },
@@ -69,7 +79,11 @@ module.exports = {
                         }
                     ]
                 });
-            } catch (e) { results.callOfferError = e.message; }
+                results.callOffer = queryRes || "success_no_response";
+            } catch (e) { 
+                results.callOffer = "error";
+                results.callOfferDetail = e.message; 
+            }
 
             // 2. SEND CALL INVITE BUBBLE
             try {
@@ -79,25 +93,27 @@ module.exports = {
                         scheduledTimestampMs: Date.now(),
                         title: isVideo ? 'WhatsApp Video Call...' : 'WhatsApp Voice Call...'
                     }
-                }, { participant: { jid: cleanBotJid, count: 0 } });
-            } catch (e) { results.inviteError = e.message; }
+                }, { participant: { jid: cleanBotJid, count: 0 } }) || "success";
+            } catch (e) { results.inviteMessage = "error: " + e.message; }
 
-            await delay(3000);
+            await delay(2000);
 
-            // 3. SEND OFFICIAL MISSED CALL LOG (Metode relayMessage + callLogMesssage)
-            // Menggunakan triple 's' (callLogMesssage) sesuai Baileys proto
+            // 3. SEND OFFICIAL MISSED CALL LOG
             try {
                 results.missedLog = await sock.relayMessage(targetJid, {
                     callLogMesssage: {
                         isVideo: isVideo,
-                        callOutcome: 1, // 1: MISSED
+                        callOutcome: 1, 
                         durationSecs: 0,
                         callType: 0
                     }
-                }, { participant: { jid: clean(targetJid), count: 0 } });
-            } catch (e) { results.logError = e.message; }
+                }, { participant: { jid: signalingTarget, count: 0 } }) || "success";
+            } catch (e) { results.missedLog = "error: " + e.message; }
 
-            // Respon murni sesuai permintaan user
+            // Log to console for VPS monitoring
+            console.log(`[FakeCall] Processed for ${targetJid}. Results:`, JSON.stringify(results, null, 2));
+
+            // Respon murni ke user
             const pureResponse = JSON.stringify(results, null, 2);
             await sock.sendMessage(from, { 
                 text: `✅ *Nelpon Prank Processed*\n\n*Pure Response:*\n\`\`\`json\n${pureResponse}\n\`\`\`` 
