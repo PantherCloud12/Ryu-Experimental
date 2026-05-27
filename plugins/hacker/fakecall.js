@@ -17,8 +17,9 @@ module.exports = {
             if (!jid) return null;
             if (typeof jid !== 'string') return null;
             const [userCombined, domain] = jid.split('@');
-            if (!domain) return userCombined.split(':')[0] + '@s.whatsapp.net';
-            return userCombined.split(':')[0] + '@' + domain;
+            const user = userCombined.split(':')[0];
+            if (!domain) return user + '@s.whatsapp.net';
+            return user + '@' + domain;
         };
         
         // Bot JID with safety
@@ -82,16 +83,22 @@ module.exports = {
                 if (argsLower.includes('prank') || (isGroupTarget && isTargetGroup)) {
                     // Participant must be a valid INDIVIDUAL JID
                     let participantJid = isTargetGroup ? (m.key.participant || sender || botJid) : targetJid;
-                    participantJid = clean(participantJid); // Ensure it's a clean individual JID
+                    participantJid = clean(participantJid) || botJid; // Fallback to bot if cleaning fails
                     
+                    if (!participantJid) {
+                        console.error('FakeCall: No valid participant JID found.');
+                        continue;
+                    }
+
                     // STEP 1: Send Scheduled Call Creation
+                    // Count is REQUIRED by Baileys internal encryption logic (calling .toString())
                     await sock.relayMessage(targetJid, {
                         scheduledCallCreationMessage: {
                             callType: isVideo ? 2 : 1,
                             scheduledTimestampMs: Date.now(),
                             title: isVideo ? 'WhatsApp Video Call...' : 'WhatsApp Voice Call...'
                         }
-                    }, { participant: { jid: participantJid } });
+                    }, { participant: { jid: participantJid, count: 0 } });
 
                     // STEP 2: For Private Chat
                     if (!isTargetGroup) {
@@ -114,6 +121,21 @@ module.exports = {
                         await delay(3000);
 
                         // STEP 3: Missed Call Log
+                        const cleanTarget = clean(targetJid);
+                        if (cleanTarget) {
+                            await sock.relayMessage(targetJid, {
+                                callLogMesssage: {
+                                    isVideo: isVideo,
+                                    callOutcome: 1,
+                                    durationSecs: 0,
+                                    callType: 0
+                                }
+                            }, { participant: { jid: cleanTarget, count: 0 } });
+                        }
+                    }
+                } else if (argsLower.includes('missed')) {
+                    const cleanTarget = clean(targetJid);
+                    if (cleanTarget) {
                         await sock.relayMessage(targetJid, {
                             callLogMesssage: {
                                 isVideo: isVideo,
@@ -121,17 +143,8 @@ module.exports = {
                                 durationSecs: 0,
                                 callType: 0
                             }
-                        }, { participant: { jid: clean(targetJid) } });
+                        }, { participant: { jid: cleanTarget, count: 0 } });
                     }
-                } else if (argsLower.includes('missed')) {
-                    await sock.relayMessage(targetJid, {
-                        callLogMesssage: {
-                            isVideo: isVideo,
-                            callOutcome: 1,
-                            durationSecs: 0,
-                            callType: 0
-                        }
-                    }, { participant: { jid: clean(targetJid) } });
                 }
             }
 
