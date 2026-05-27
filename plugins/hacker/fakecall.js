@@ -69,8 +69,9 @@ module.exports = {
 
                 if (argsLower.includes('prank') || (isGroupTarget && isTargetGroup)) {
                     // STEP 1: Send Scheduled Call Creation
-                    // Participant must be a string JID
-                    const participantJid = isTargetGroup ? (m.key.participant || sender || sock.user?.id?.split(':')[0] + '@s.whatsapp.net') : targetJid;
+                    // Ensure botJid is clean
+                    const botJid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
+                    const participantJid = isTargetGroup ? (m.key.participant || sender || botJid) : targetJid;
                     
                     await sock.relayMessage(targetJid, {
                         scheduledCallCreationMessage: {
