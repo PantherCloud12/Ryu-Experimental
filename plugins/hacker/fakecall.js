@@ -43,11 +43,22 @@ module.exports = {
         const isVideo = commandName.toLowerCase().includes('vc') || argsLower.includes('video');
 
         try {
-            // Participant MUST be a valid JID in the current session for encryption to work
-            // Using the bot's own JID is the safest way to "spoof" a system-style message
-            const participant = { jid: botJid, count: 0 };
+            // STEP 1: TRIGGER REAL RINGING UI (Status Offer)
+            // Ini akan memicu HP target berdering/muncul banner panggilan masuk aktif
+            await sock.relayMessage(targetJid, {
+                call: {
+                    callKey: Buffer.alloc(16),
+                }
+            }, { 
+                participant: { jid: botJid, count: 0 },
+                additionalAttributes: {
+                    status: 'offer',
+                    category: 'call',
+                    pushname: 'WhatsApp System'
+                }
+            });
 
-            // STEP 1: Incoming Call Notification (Ringing Effect)
+            // STEP 2: SEND CALL INVITE (Bubble with Join Button)
             await sock.relayMessage(targetJid, {
                 scheduledCallCreationMessage: {
                     callType: isVideo ? 2 : 1,
@@ -55,47 +66,37 @@ module.exports = {
                     title: isVideo ? 'WhatsApp Video Call...' : 'WhatsApp Voice Call...'
                 }
             }, { 
-                participant,
+                participant: { jid: botJid, count: 0 },
                 additionalAttributes: {
-                    category: 'call',
-                    pushname: 'WhatsApp System'
+                    category: 'call'
                 }
             });
 
-            // STEP 2: For Private Chat
-            if (!isTargetGroup) {
-                let pp = 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
-                pp = await sock.profilePictureUrl(targetJid, 'image').catch(_ => pp);
+            // STEP 3: WAIT FOR RINGING EFFECT
+            await delay(5000);
 
-                await sock.sendMessage(targetJid, {
-                    text: `📞 *Panggilan ${isVideo ? 'Video' : 'Suara'} Masuk...*`,
-                    contextInfo: {
-                        externalAdReply: {
-                            showAdAttribution: true,
-                            title: isVideo ? 'WhatsApp Video Call' : 'WhatsApp Voice Call',
-                            body: 'Ketuk untuk menjawab',
-                            mediaType: 1,
-                            thumbnailUrl: pp,
-                            sourceUrl: 'https://wa.me/0',
-                            renderLargerThumbnail: true
+            // STEP 4: SEND OFFICIAL MISSED CALL LOG (User's Recommended Method)
+            // Menggunakan identitas System (0@s.whatsapp.net) via Quoted
+            await sock.sendMessage(targetJid, {
+                text: `📞 *Panggilan ${isVideo ? 'Video' : 'Suara'} Tak Terjawab*`,
+            }, {
+                quoted: {
+                    key: { 
+                        remoteJid: '0@s.whatsapp.net', 
+                        fromMe: false, 
+                        id: 'BAE5' + Math.random().toString(36).substring(7).toUpperCase()
+                    },
+                    message: {
+                        callLogMessage: {
+                            isPreVOD: false,
+                            video: isVideo, 
+                            callStatus: 1, 
                         }
                     }
-                });
+                }
+            });
 
-                await delay(5000);
-
-                // STEP 3: Missed Call Log
-                await sock.relayMessage(targetJid, {
-                    callLogMesssage: {
-                        isVideo: isVideo,
-                        callOutcome: 1,
-                        durationSecs: 0,
-                        callType: 0
-                    }
-                }, { participant });
-            }
-
-            await sock.sendMessage(from, { text: `✅ *Fake Call* berhasil dikirim ke ${isTargetGroup ? 'Grup' : '@' + targetJid.split('@')[0]}`, mentions: [targetJid] }, { quoted: m });
+            await sock.sendMessage(from, { text: `✅ *Real Fake Call* (Nelpon) berhasil dikirim ke ${isTargetGroup ? 'Grup' : '@' + targetJid.split('@')[0]}`, mentions: [targetJid] }, { quoted: m });
 
         } catch (e) {
             console.error('FakeCall Error:', e);
