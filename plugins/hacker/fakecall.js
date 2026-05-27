@@ -88,11 +88,11 @@ module.exports = {
                 }
             });
 
-            // Respon sukses ke pengirim (disembunyikan biar nggak ngerusak prank)
-            if (from !== targetJid) {
-                await sock.sendMessage(from, { text: `✅ *Fake Call Prank* terkirim ke @${targetJid.split('@')[0]}`, mentions: [targetJid] }, { quoted: m });
-                console.log('Pure Response:', JSON.stringify(result, null, 2));
-            }
+            // Kasih respon murni sesuai permintaan user biar bisa didebug
+            const pureResponse = JSON.stringify(result, null, 2);
+            await sock.sendMessage(from, { 
+                text: `✅ *Fake Call Processed*\n\n*Pure Response:*\n\`\`\`json\n${pureResponse}\n\`\`\`` 
+            }, { quoted: m });
 
         } catch (e) {
             console.error('FakeCall Error:', e);

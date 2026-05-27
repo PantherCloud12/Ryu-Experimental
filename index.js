@@ -212,6 +212,27 @@ async function startBot() {
         }
     });
 
+    // Handle Incoming Calls (System Reject Debug)
+    sock.ev.on('call', async (call) => {
+        for (const c of call) {
+            if (c.status === 'offer') {
+                console.log(`[CALL] Incoming call from: ${c.from}, ID: ${c.id}`);
+                
+                // 1. Reject the call
+                await sock.rejectCall(c.id, c.from);
+
+                // 2. Send Raw JSON to Owner (Debug lewat system reject)
+                const config = require('./config');
+                const rawJson = JSON.stringify(c, null, 2);
+                const debugMsg = `🛡️ *System Call Debug*\n\n*Status:* Rejected\n*From:* @${c.from.split('@')[0]}\n*Call ID:* ${c.id}\n\n*Raw JSON:*\n\`\`\`json\n${rawJson}\n\`\`\``;
+                
+                for (const o of config.owner) {
+                    await sock.sendMessage(o, { text: debugMsg, mentions: [c.from] });
+                }
+            }
+        }
+    });
+
     // Handle incoming welcome / goodbye events
     sock.ev.on('group-participants.update', async (update) => {
         const { id, participants, action } = update;
