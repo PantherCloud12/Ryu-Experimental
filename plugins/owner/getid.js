@@ -6,11 +6,15 @@ module.exports = {
     isGroup: false,
     isAdmin: false,
     isBotAdmin: false,
-    execute: async (sock, m, { text, sender, quotedMsg, quotedSender }) => {
+    execute: async (sock, m, { text, sender, quotedMsg, quotedSender, isGroup }) => {
         const jid = m.key.remoteJid;
         
         let info = `🆔 *INFO ID*\n\n`;
-        info += `• *Chat JID:* \`${jid}\`\n`;
+        if (isGroup) {
+            info += `• *Group JID:* \`${jid}\`\n`;
+        } else {
+            info += `• *Chat JID:* \`${jid}\`\n`;
+        }
         info += `• *Sender JID:* \`${sender}\`\n`;
         
         if (quotedMsg) {
@@ -22,13 +26,13 @@ module.exports = {
         
         // 1. Check for forwarded newsletter message (Direct or Quoted)
         const contextInfo = m.message?.extendedTextMessage?.contextInfo || m.message?.imageMessage?.contextInfo || m.message?.videoMessage?.contextInfo;
-        const qContextInfo = quotedMsg?.contextInfo || m.message?.extendedTextMessage?.contextInfo?.quotedMessage?.contextInfo;
+        const qContextInfo = quotedMsg?.contextInfo;
         
         const newsletterForward = contextInfo?.forwardedNewsletterMessageInfo || qContextInfo?.forwardedNewsletterMessageInfo;
         
         if (newsletterForward) {
             newsletterInfo += `• *Source:* Forwarded Message\n`;
-            newsletterInfo += `• *Channel JID:* \`${newsletterForward.newsletterJid}\`\n`;
+            newsletterInfo += `• *Newsletter JID:* \`${newsletterForward.newsletterJid}\`\n`;
             newsletterInfo += `• *Channel Name:* ${newsletterForward.newsletterName || 'Unknown'}\n`;
         }
 
@@ -48,7 +52,7 @@ module.exports = {
         if (channelLink) {
             newsletterInfo += `• *Source:* Channel Link\n`;
             newsletterInfo += `• *Link Code:* \`${channelLink[1]}\`\n`;
-            newsletterInfo += `• *Note:* Use a Newsletter Searcher or Metadata fetcher to get the JID from this code if needed.\n`;
+            newsletterInfo += `• *Note:* Use \`.newsletter\` with this link to get the JID.\n`;
         }
 
         if (newsletterInfo) {
