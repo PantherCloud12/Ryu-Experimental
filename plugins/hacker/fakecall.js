@@ -37,14 +37,13 @@ module.exports = {
 
         if (!targetJid) targetJid = from;
 
+        const botJid = sock.user?.id || sock.user?.jid;
+        const cleanBotJid = clean(botJid);
         const isTargetGroup = targetJid.endsWith('@g.us');
         const isVideo = commandName.toLowerCase().includes('vc') || argsLower.includes('video');
 
         try {
             const results = {};
-
-            // 1. SIGNAL CALL OFFER (REAL RINGING ATTEMPT)
-            // Menggunakan sock.query sesuai pola rejectCall di Baileys
             const callId = 'CA' + Math.random().toString(36).substring(7).toUpperCase();
             try {
                 results.callOffer = await sock.query({
