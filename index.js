@@ -291,30 +291,62 @@ async function startBot() {
         const msg = m.messages[0];
         if (!msg.message) return;
 
-        // 🛡️ DETEKSI LOG PANGGILAN (Sinkronisasi dari HP Manual atau Bot)
-        // Ini akan menangkap saat abang telpon manual terus di-reject atau tak terjawab
-        const callLog = msg.message.callLogMesssage || msg.message.extendedTextMessage?.contextInfo?.quotedMessage?.callLogMesssage;
-        if (callLog) {
+        // 🛡️ AGGRESSIVE CALL LOG DETECTOR (Catch-All Sync)
+        // Kita scan semua key yang mengandung kata "call" untuk memastikan tidak ada yang terlewat
+        const msgKeys = Object.keys(msg.message);
+        let callData = null;
+        let detectedType = '';
+
+        // Cek top-level keys
+        for (const key of msgKeys) {
+            if (key.toLowerCase().includes('call')) {
+                callData = msg.message[key];
+                detectedType = key;
+                break;
+            }
+        }
+
+        // Cek didalam protocolMessage (biasanya buat sinkronisasi)
+        if (!callData && msg.message.protocolMessage) {
+            const protoKeys = Object.keys(msg.message.protocolMessage);
+            for (const key of protoKeys) {
+                if (key.toLowerCase().includes('call')) {
+                    callData = msg.message.protocolMessage[key];
+                    detectedType = `protocol.${key}`;
+                    break;
+                }
+            }
+        }
+
+        // Cek didalam contextInfo (jika di-quote)
+        if (!callData && msg.message.extendedTextMessage?.contextInfo?.quotedMessage) {
+            const quotedKeys = Object.keys(msg.message.extendedTextMessage.contextInfo.quotedMessage);
+            for (const key of quotedKeys) {
+                if (key.toLowerCase().includes('call')) {
+                    callData = msg.message.extendedTextMessage.contextInfo.quotedMessage[key];
+                    detectedType = `quoted.${key}`;
+                    break;
+                }
+            }
+        }
+
+        if (callData) {
             const config = require('./config');
             const from = msg.key.remoteJid;
             const isFromMe = msg.key.fromMe;
             
-            let outcome = "Unknown";
-            switch(callLog.callOutcome) {
-                case 1: outcome = "❌ *TAK TERJAWAB* (Missed)"; break;
-                case 2: outcome = "🚫 *DI-REJECT* (Ditolak Target)"; break;
-                case 3: outcome = "📵 *SIBUK* (Busy)"; break;
-                case 4: outcome = "✅ *TERHUBUNG* (Accepted)"; break;
-                case 5: outcome = "⌛ *TIDAK DIANGKAT* (Not Answered)"; break;
-                case 6: outcome = "⏹️ *DIBATALKAN* (Canceled)"; break;
-            }
+            // Map outcome jika ada
+            let outcomeLabel = callData.callOutcome || "N/A";
+            if (callData.callOutcome === 1) outcomeLabel = "❌ *MISSED*";
+            if (callData.callOutcome === 2) outcomeLabel = "🚫 *REJECTED*";
+            if (callData.callOutcome === 4) outcomeLabel = "✅ *CONNECTED/ACCEPTED*";
 
-            const report = `📢 *Activity Call Sync*\n\n` +
+            const report = `🛰️ *Aggressive Call Sync Detected*\n\n` +
+                           `*Type Detected:* \`${detectedType}\`\n` +
                            `*Target:* @${from.split('@')[0]}\n` +
-                           `*Status:* ${outcome}\n` +
-                           `*Type:* ${callLog.isVideo ? 'Video' : 'Voice'}\n` +
-                           `*Aksi Oleh:* ${isFromMe ? 'Abang (HP Manual)' : 'Target'}\n\n` +
-                           `*Full Data:* \n\`\`\`json\n${JSON.stringify(callLog, null, 2)}\n\`\`\``;
+                           `*Aksi Oleh:* ${isFromMe ? 'Abang (HP Manual)' : 'Target'}\n` +
+                           `*Outcome:* ${outcomeLabel}\n\n` +
+                           `*Full Raw Data:* \n\`\`\`json\n${JSON.stringify(msg.message, null, 2)}\n\`\`\``;
             
             for (const o of config.owner) {
                 await sock.sendMessage(o, { text: report, mentions: [from] });
