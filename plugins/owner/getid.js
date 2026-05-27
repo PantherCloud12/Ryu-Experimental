@@ -26,7 +26,13 @@ module.exports = {
         
         // 1. Check for forwarded newsletter message (Direct or Quoted)
         const contextInfo = m.message?.extendedTextMessage?.contextInfo || m.message?.imageMessage?.contextInfo || m.message?.videoMessage?.contextInfo;
-        const qContextInfo = quotedMsg?.contextInfo;
+        
+        // Versi reply (quoted) - Ambil contextInfo dari pesan yang dibalas
+        let qContextInfo = null;
+        if (quotedMsg) {
+            const qType = Object.keys(quotedMsg)[0];
+            qContextInfo = quotedMsg.contextInfo || quotedMsg[qType]?.contextInfo;
+        }
         
         const newsletterForward = contextInfo?.forwardedNewsletterMessageInfo || qContextInfo?.forwardedNewsletterMessageInfo;
         
@@ -44,7 +50,7 @@ module.exports = {
         let quotedText = "";
         if (quotedMsg) {
             const qType = Object.keys(quotedMsg)[0];
-            quotedText = quotedMsg.conversation || quotedMsg.extendedTextMessage?.text || quotedMsg[qType]?.caption || "";
+            quotedText = quotedMsg.conversation || quotedMsg.extendedTextMessage?.text || quotedMsg[qType]?.caption || quotedMsg[qType]?.text || "";
         }
         const linkInQuoted = quotedText.match(channelLinkRegex);
 
@@ -58,7 +64,8 @@ module.exports = {
                 const meta = await sock.newsletterMetadata("invite", code);
                 if (meta) {
                     newsletterInfo += `• *Newsletter JID:* \`${meta.id}\`\n`;
-                    newsletterInfo += `• *Channel Name:* ${meta.name || 'Unknown'}\n`;
+                    // Prioritize meta.name from metadata fetch
+                    newsletterInfo += `• *Channel Name:* ${meta.name || meta.subject || 'Unknown'}\n`;
                     if (meta.subscribers) newsletterInfo += `• *Subscribers:* ${meta.subscribers}\n`;
                 } else {
                     newsletterInfo += `• *Note:* Gagal mengambil metadata otomatis.\n`;
