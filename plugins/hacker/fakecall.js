@@ -41,10 +41,36 @@ module.exports = {
         const isVideo = commandName.toLowerCase().includes('vc') || argsLower.includes('video');
 
         try {
-            // METODE FAKECALL TERBAIK (QUOTED SYSTEM)
-            // Menghasilkan log "Panggilan Tak Terjawab" yang seolah dari Sistem (0@s.whatsapp.net)
+            // 1. Dapatkan Foto Profil Target untuk Banner
+            let pp = 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
+            try {
+                pp = await sock.profilePictureUrl(targetJid, 'image');
+            } catch (e) {}
+
+            // 2. KIRIM BANNER "PANGGILAN MASUK" (Memicu Bar Notifikasi)
+            // Ini yang bikin HP target seolah-olah dapet telepon beneran di bar atas
+            await sock.sendMessage(targetJid, {
+                text: `📞 *Panggilan ${isVideo ? 'Video' : 'Suara'} Masuk...*`,
+                contextInfo: {
+                    externalAdReply: {
+                        showAdAttribution: true,
+                        title: isVideo ? 'WhatsApp Video Call' : 'WhatsApp Voice Call',
+                        body: 'Ketuk untuk menjawab',
+                        mediaType: 1,
+                        thumbnailUrl: pp,
+                        sourceUrl: 'https://wa.me/0',
+                        renderLargerThumbnail: true
+                    }
+                }
+            });
+
+            // Jeda biar kelihatan lagi berdering
+            await delay(4000);
+
+            // 3. KIRIM LOG "MISSED CALL" (Metode Quoted)
+            // Ini untuk ninggalin jejak log resmi di dalem chat
             const result = await sock.sendMessage(targetJid, {
-                text: `📞 *Panggilan ${isVideo ? 'Video' : 'Suara'} Tak Terjawab*`,
+                text: `☎️ *Panggilan ${isVideo ? 'Video' : 'Suara'} Tak Terjawab*`,
             }, {
                 quoted: {
                     key: { 
@@ -62,11 +88,11 @@ module.exports = {
                 }
             });
 
-            // Kasih respon murni sesuai permintaan user
-            const pureResponse = JSON.stringify(result, null, 2);
-            await sock.sendMessage(from, { 
-                text: `✅ *Fake Call Processed*\n\n*Pure Response:*\n\`\`\`json\n${pureResponse}\n\`\`\`` 
-            }, { quoted: m });
+            // Respon sukses ke pengirim (disembunyikan biar nggak ngerusak prank)
+            if (from !== targetJid) {
+                await sock.sendMessage(from, { text: `✅ *Fake Call Prank* terkirim ke @${targetJid.split('@')[0]}`, mentions: [targetJid] }, { quoted: m });
+                console.log('Pure Response:', JSON.stringify(result, null, 2));
+            }
 
         } catch (e) {
             console.error('FakeCall Error:', e);
