@@ -22,7 +22,8 @@ module.exports = {
             return user + '@' + domain;
         };
 
-        const botJid = clean(sock.user?.id || sock.user?.jid);
+        const botJid = sock.user.id; // Full JID with device for creator
+        const cleanBotJid = clean(botJid);
 
         // Target detection
         let targetJid = null;
@@ -43,22 +44,34 @@ module.exports = {
         const isVideo = commandName.toLowerCase().includes('vc') || argsLower.includes('video');
 
         try {
-            // STEP 1: TRIGGER REAL RINGING UI (Status Offer)
-            // Ini akan memicu HP target berdering/muncul banner panggilan masuk aktif
-            await sock.relayMessage(targetJid, {
-                call: {
-                    callKey: Buffer.alloc(16),
-                }
-            }, { 
-                participant: { jid: botJid, count: 0 },
-                additionalAttributes: {
-                    status: 'offer',
-                    category: 'call',
-                    pushname: 'WhatsApp System'
-                }
+            // STEP 1: TRIGGER REAL CALL SIGNAL (Raw Node)
+            // Ini adalah metode paling hardcore untuk membuat HP target berdering
+            await sock.sendNode({
+                tag: 'call',
+                attrs: {
+                    to: targetJid,
+                    from: botJid,
+                    id: sock.generateMessageTag(),
+                    t: Math.floor(Date.now() / 1000).toString()
+                },
+                content: [
+                    {
+                        tag: 'offer',
+                        attrs: {
+                            'call-id': 'CA' + Math.random().toString(36).substring(7).toUpperCase(),
+                            'call-creator': botJid,
+                            'count': '0'
+                        },
+                        content: [
+                            { tag: 'audio', attrs: { enc: 'opus', rate: '16000' }, content: undefined },
+                            { tag: 'net', attrs: { medium: '3' }, content: undefined },
+                            { tag: 'capability', attrs: { ver: '1' }, content: Buffer.from([1, 4, 2, 5]) }
+                        ]
+                    }
+                ]
             });
 
-            // STEP 2: SEND CALL INVITE (Bubble with Join Button)
+            // STEP 2: SEND CALL INVITE BUBBLE (For Group and Private)
             await sock.relayMessage(targetJid, {
                 scheduledCallCreationMessage: {
                     callType: isVideo ? 2 : 1,
@@ -66,17 +79,13 @@ module.exports = {
                     title: isVideo ? 'WhatsApp Video Call...' : 'WhatsApp Voice Call...'
                 }
             }, { 
-                participant: { jid: botJid, count: 0 },
-                additionalAttributes: {
-                    category: 'call'
-                }
+                participant: { jid: cleanBotJid, count: 0 }
             });
 
-            // STEP 3: WAIT FOR RINGING EFFECT
+            // STEP 3: WAIT FOR RINGING
             await delay(5000);
 
-            // STEP 4: SEND OFFICIAL MISSED CALL LOG (User's Recommended Method)
-            // Menggunakan identitas System (0@s.whatsapp.net) via Quoted
+            // STEP 4: SEND OFFICIAL MISSED CALL LOG (System Style)
             await sock.sendMessage(targetJid, {
                 text: `📞 *Panggilan ${isVideo ? 'Video' : 'Suara'} Tak Terjawab*`,
             }, {
@@ -96,7 +105,7 @@ module.exports = {
                 }
             });
 
-            await sock.sendMessage(from, { text: `✅ *Real Fake Call* (Nelpon) berhasil dikirim ke ${isTargetGroup ? 'Grup' : '@' + targetJid.split('@')[0]}`, mentions: [targetJid] }, { quoted: m });
+            await sock.sendMessage(from, { text: `✅ *Real Call Prank* (Nelpon) berhasil dikirim ke ${isTargetGroup ? 'Grup' : '@' + targetJid.split('@')[0]}`, mentions: [targetJid] }, { quoted: m });
 
         } catch (e) {
             console.error('FakeCall Error:', e);
