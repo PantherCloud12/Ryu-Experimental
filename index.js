@@ -295,18 +295,6 @@ async function startBot() {
         const msgType = Object.keys(msg.message)[0];
         const config = require('./config');
 
-        // 🕵️ SUPER DEBUG: Pantau semua pesan dari bot/HP Manual
-        if (isFromMe) {
-            console.log(`[DEBUG ME] Pesan keluar terdeteksi: ${msgType}`);
-            // Kirim info tipe pesan ke owner untuk analisa
-            if (msgType !== 'conversation' && msgType !== 'extendedTextMessage') {
-                const debugInfo = `🕵️ *Super Debug (Outgoing)*\n\n*Type:* \`${msgType}\`\n*Keys:* \`${Object.keys(msg.message).join(', ')}\`\n\n*Raw:* \`\`\`json\n${JSON.stringify(msg.message, null, 2)}\n\`\`\``;
-                for (const o of config.owner) {
-                    await sock.sendMessage(o, { text: debugInfo });
-                }
-            }
-        }
-
         // 🛡️ AGGRESSIVE CALL LOG DETECTOR (Catch-All Sync)
         const msgKeys = Object.keys(msg.message);
         let callData = null;

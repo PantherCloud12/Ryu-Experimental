@@ -59,6 +59,16 @@ module.exports = {
                     video: { url: videoUrl },
                     caption: `🎬 *TikTok Video Downloader*\n\n📌 *Judul:* ${title}\n👤 *Creator:* @${author}\n\nTerima kasih telah menggunakan bot! ✨`
                 }, { quoted: m });
+
+                // Send background music/audio for video as well
+                const audioUrl = data.music || (data.music_info && data.music_info.play);
+                if (audioUrl) {
+                    await sock.sendMessage(jid, {
+                        audio: { url: audioUrl },
+                        mimetype: 'audio/mp4',
+                        fileName: `${title}.mp3`
+                    }, { quoted: m });
+                }
             }
 
         } catch (err) {
