@@ -50,13 +50,29 @@ module.exports = {
         let quotedText = "";
         if (quotedMsg) {
             const qType = Object.keys(quotedMsg)[0];
-            quotedText = quotedMsg.conversation || quotedMsg.extendedTextMessage?.text || quotedMsg[qType]?.caption || quotedMsg[qType]?.text || "";
+            // Broaden extraction: check various possible text fields in the quoted message
+            quotedText = quotedMsg.conversation || 
+                         quotedMsg.extendedTextMessage?.text || 
+                         quotedMsg[qType]?.caption || 
+                         quotedMsg[qType]?.text || 
+                         "";
+                         
+            // DEBUG: Log if needed to console (remove later)
+            // console.log('[GETID DEBUG] Quoted Type:', qType, 'Text Found:', quotedText);
         }
+        
         const linkInQuoted = quotedText.match(channelLinkRegex);
 
+        // 3. Fallback: Check contextInfo directly if it's a specific newsletter share message
+        const isNewsletterShare = quotedMsg?.newsletterAdminInviteMessage || quotedMsg?.newsletterInviteMessage;
+        let shareCode = "";
+        if (isNewsletterShare) {
+            shareCode = quotedMsg.newsletterAdminInviteMessage?.newsletterInviteCode || quotedMsg.newsletterInviteMessage?.newsletterInviteCode;
+        }
+
         const channelLink = linkInText || linkInQuoted;
-        if (channelLink) {
-            const code = channelLink[1];
+        if (channelLink || shareCode) {
+            const code = shareCode || channelLink[1];
             newsletterInfo += `• *Source:* Channel Link (\`${code}\`)\n`;
             
             try {
