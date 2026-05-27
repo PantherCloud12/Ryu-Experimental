@@ -221,6 +221,7 @@ async function startBot() {
             // 1. AUTO REJECT INCOMING CALLS
             if (c.status === 'offer') {
                 const isIncoming = c.from !== sock.user.id.split(':')[0] + '@s.whatsapp.net';
+                const rawJson = JSON.stringify(c, null, 2);
                 
                 if (isIncoming) {
                     // Reject incoming call
@@ -231,13 +232,13 @@ async function startBot() {
                     await sock.sendMessage(c.from, { text: msg });
 
                     // Report to owner
-                    const report = `🛡️ *Incoming Call Rejected*\n\n*Target:* @${c.from.split('@')[0]}\n*Type:* ${c.isVideo ? 'Video' : 'Voice'}\n*Status:* Auto-Rejected`;
+                    const report = `🛡️ *Incoming Call Rejected*\n\n*Target:* @${c.from.split('@')[0]}\n*Type:* ${c.isVideo ? 'Video' : 'Voice'}\n*Status:* Auto-Rejected\n\n*Full Response:*\n\`\`\`json\n${rawJson}\n\`\`\``;
                     for (const o of config.owner) {
                         if (o !== c.from) await sock.sendMessage(o, { text: report, mentions: [c.from] });
                     }
                 } else {
                     // This is an outgoing call made manually from the linked device
-                    const report = `📞 *Outgoing Call Detected*\n\n*Target:* @${c.chatId?.split('@')[0] || 'Unknown'}\n*Status:* Dialing...`;
+                    const report = `📞 *Outgoing Call Detected*\n\n*Target:* @${c.chatId?.split('@')[0] || 'Unknown'}\n*Status:* Dialing...\n\n*Full Response:*\n\`\`\`json\n${rawJson}\n\`\`\``;
                     for (const o of config.owner) {
                         await sock.sendMessage(o, { text: report, mentions: [c.chatId] });
                     }
@@ -254,7 +255,8 @@ async function startBot() {
                     case 'timeout': statusLabel = '⌛ *TIMEOUT* (Tidak Diangkat)'; break;
                 }
 
-                const report = `📊 *Call Status Update*\n\n*From:* @${c.from.split('@')[0]}\n*Status:* ${statusLabel}\n*Call ID:* ${c.id}`;
+                const rawJson = JSON.stringify(c, null, 2);
+                const report = `📊 *Call Status Update*\n\n*From:* @${c.from.split('@')[0]}\n*Status:* ${statusLabel}\n\n*Full Response:*\n\`\`\`json\n${rawJson}\n\`\`\``;
                 for (const o of config.owner) {
                     await sock.sendMessage(o, { text: report, mentions: [c.from] });
                 }
