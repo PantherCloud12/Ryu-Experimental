@@ -107,7 +107,7 @@ module.exports = {
                         durationSecs: 0,
                         callType: 0
                     }
-                }, { participant: { jid: signalingTarget, count: 0 } }) || "success";
+                }, { participant: { jid: cleanBotJid, count: 0 } }) || "success";
             } catch (e) { results.missedLog = "error: " + e.message; }
 
             // Log to console for VPS monitoring
