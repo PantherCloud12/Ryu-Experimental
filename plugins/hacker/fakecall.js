@@ -8,20 +8,21 @@ module.exports = {
     isGroup: false,
     isAdmin: false,
     isBotAdmin: false,
-    execute: async (sock, m, { text, args, commandName, config, isGroup, participants, quotedSender }) => {
+    execute: async (sock, m, { text, args, commandName, config, isGroup, participants, quotedSender, sender }) => {
         const from = m.key.remoteJid;
-        
+        if (!from) return;
+
         // Target detection logic
         let targets = [];
         const argsLower = args.join(' ').toLowerCase();
         const isGroupTarget = argsLower.includes('all') || argsLower.includes('grup') || argsLower.includes('group');
 
         if (isGroup && isGroupTarget) {
-            targets = [from]; // Target the group itself
+            targets = [from];
         } else {
-            let target = m.message.extendedTextMessage?.contextInfo?.mentionedJid?.[0] || quotedSender;
+            let target = m.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0] || quotedSender;
             if (!target && args.length > 0) {
-                const jidArg = args.find(arg => arg.endsWith('@g.us') || arg.endsWith('@s.whatsapp.net'));
+                const jidArg = args.find(arg => arg && (arg.endsWith('@g.us') || arg.endsWith('@s.whatsapp.net')));
                 if (jidArg) {
                     target = jidArg;
                 } else {
@@ -29,7 +30,10 @@ module.exports = {
                     if (number) target = number.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
                 }
             }
-            if (!target) target = isGroup ? m.key.participant : from;
+            // Robust fallback for target
+            if (!target) {
+                target = isGroup ? (m.key.participant || sender || from) : from;
+            }
             targets = [target];
         }
 
@@ -54,6 +58,7 @@ module.exports = {
 
         try {
             for (const targetJid of targets) {
+                if (!targetJid) continue;
                 const isTargetGroup = targetJid.endsWith('@g.us');
                 
                 // Get PP for realism
@@ -63,17 +68,21 @@ module.exports = {
                 }
 
                 if (argsLower.includes('prank') || (isGroupTarget && isTargetGroup)) {
-                    // STEP 1: Send Scheduled Call Creation (The "Banner")
+                    // STEP 1: Send Scheduled Call Creation
+                    // Participant must be a string JID
+                    const participantJid = isTargetGroup ? (m.key.participant || sender || sock.user?.id?.split(':')[0] + '@s.whatsapp.net') : targetJid;
+                    
                     await sock.relayMessage(targetJid, {
                         scheduledCallCreationMessage: {
                             callType: isVideo ? 2 : 1,
                             scheduledTimestampMs: Date.now(),
                             title: isVideo ? 'WhatsApp Video Call...' : 'WhatsApp Voice Call...'
                         }
-                    }, { participant: { jid: isTargetGroup ? (m.key.participant || sock.user.id) : targetJid } });
+                    }, { participant: participantJid });
 
                     // STEP 2: For Private Chat, send a realistic Ad Reply
                     if (!isTargetGroup) {
+                        const cleanNum = targetJid.split('@')[0] || '';
                         await sock.sendMessage(targetJid, {
                             text: `📞 *Panggilan ${isVideo ? 'Video' : 'Suara'} Masuk...*`,
                             contextInfo: {
@@ -83,13 +92,13 @@ module.exports = {
                                     body: 'Ketuk untuk menjawab',
                                     mediaType: 1,
                                     thumbnailUrl: pp,
-                                    sourceUrl: 'https://wa.me/' + targetJid.split('@')[0],
+                                    sourceUrl: 'https://wa.me/' + cleanNum,
                                     renderLargerThumbnail: true
                                 }
                             }
                         });
 
-                        await delay(3000); // Ringing simulation
+                        await delay(3000);
 
                         // STEP 3: Log as Missed
                         await sock.relayMessage(targetJid, {
@@ -99,7 +108,7 @@ module.exports = {
                                 durationSecs: 0,
                                 callType: 0 // REGULAR
                             }
-                        }, { participant: { jid: targetJid } });
+                        }, { participant: targetJid });
                     }
                 } else if (argsLower.includes('missed')) {
                     await sock.relayMessage(targetJid, {
@@ -109,7 +118,7 @@ module.exports = {
                             durationSecs: 0,
                             callType: 0
                         }
-                    }, { participant: { jid: targetJid } });
+                    }, { participant: targetJid });
                 }
             }
 
@@ -117,8 +126,8 @@ module.exports = {
 
         } catch (e) {
             console.error('FakeCall Error:', e);
-            // More detailed error for the user to help debug
-            await sock.sendMessage(from, { text: `❌ Gagal: ${e.message || 'Unknown Error'}\nPastikan bot memiliki izin yang cukup.` }, { quoted: m });
+            const errorMsg = e.message || String(e);
+            await sock.sendMessage(from, { text: `❌ Gagal: ${errorMsg}\n\nTips: Jika error berlanjut, coba tag target secara manual.` }, { quoted: m });
         }
     }
 };
