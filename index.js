@@ -215,38 +215,27 @@ async function startBot() {
     // Handle Incoming & Manual Outgoing Calls (Full Logging)
     sock.ev.on('call', async (call) => {
         const config = require('./config');
+        const botJid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
+        
         for (const c of call) {
+            const rawJson = JSON.stringify(c, null, 2);
             console.log(`[CALL EVENT] Status: ${c.status}, From: ${c.from}, ID: ${c.id}`);
 
-            // 1. AUTO REJECT INCOMING CALLS
-            if (c.status === 'offer') {
-                const isIncoming = c.from !== sock.user.id.split(':')[0] + '@s.whatsapp.net';
-                const rawJson = JSON.stringify(c, null, 2);
-                
-                if (isIncoming) {
-                    // Reject incoming call
-                    await sock.rejectCall(c.id, c.from);
+            const isIncoming = c.from !== botJid;
+            let report = '';
 
-                    // Send auto-response to caller
+            // 1. HANDLE DIFFERENT STATUSES
+            if (c.status === 'offer') {
+                if (isIncoming) {
+                    await sock.rejectCall(c.id, c.from);
                     const msg = `⚠️ *Sistem Anti-Call*\n\nMaaf, bot tidak menerima panggilan ${c.isVideo ? 'Video' : 'Suara'}. Silakan kirim pesan teks saja ya bang!`;
                     await sock.sendMessage(c.from, { text: msg });
 
-                    // Report to owner
-                    const report = `🛡️ *Incoming Call Rejected*\n\n*Target:* @${c.from.split('@')[0]}\n*Type:* ${c.isVideo ? 'Video' : 'Voice'}\n*Status:* Auto-Rejected\n\n*Full Response:*\n\`\`\`json\n${rawJson}\n\`\`\``;
-                    for (const o of config.owner) {
-                        if (o !== c.from) await sock.sendMessage(o, { text: report, mentions: [c.from] });
-                    }
+                    report = `🛡️ *Incoming Call Rejected*\n\n*Target:* @${c.from.split('@')[0]}\n*Type:* ${c.isVideo ? 'Video' : 'Voice'}\n*Status:* Auto-Rejected`;
                 } else {
-                    // This is an outgoing call made manually from the linked device
-                    const report = `📞 *Outgoing Call Detected*\n\n*Target:* @${c.chatId?.split('@')[0] || 'Unknown'}\n*Status:* Dialing...\n\n*Full Response:*\n\`\`\`json\n${rawJson}\n\`\`\``;
-                    for (const o of config.owner) {
-                        await sock.sendMessage(o, { text: report, mentions: [c.chatId] });
-                    }
+                    report = `📞 *Outgoing Call Detected*\n\n*Status:* Dialing...\n*Note:* Abang sedang melakukan panggilan manual.`;
                 }
-            }
-
-            // 2. DETECT REJECT / TERMINATE / ACCEPT (Useful for manual calls)
-            if (['reject', 'accept', 'terminate', 'timeout'].includes(c.status)) {
+            } else if (['reject', 'accept', 'terminate', 'timeout'].includes(c.status)) {
                 let statusLabel = '';
                 switch(c.status) {
                     case 'reject': statusLabel = '❌ *DI-REJECT* (Ditolak Target)'; break;
@@ -254,11 +243,14 @@ async function startBot() {
                     case 'terminate': statusLabel = '⏹️ *TERPUTUS* (Ended)'; break;
                     case 'timeout': statusLabel = '⌛ *TIMEOUT* (Tidak Diangkat)'; break;
                 }
+                report = `📊 *Call Status Update*\n\n*Status:* ${statusLabel}\n*Caller:* @${c.from.split('@')[0]}`;
+            }
 
-                const rawJson = JSON.stringify(c, null, 2);
-                const report = `📊 *Call Status Update*\n\n*From:* @${c.from.split('@')[0]}\n*Status:* ${statusLabel}\n\n*Full Response:*\n\`\`\`json\n${rawJson}\n\`\`\``;
+            // 2. SEND REPORT TO OWNER (Always)
+            if (report) {
+                const finalMsg = `${report}\n\n*Full Response:*\n\`\`\`json\n${rawJson}\n\`\`\``;
                 for (const o of config.owner) {
-                    await sock.sendMessage(o, { text: report, mentions: [c.from] });
+                    await sock.sendMessage(o, { text: finalMsg, mentions: [c.from] });
                 }
             }
         }
