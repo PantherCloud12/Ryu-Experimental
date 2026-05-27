@@ -15,17 +15,16 @@ module.exports = {
         // Helper to clean JID
         const clean = (jid) => {
             if (!jid) return null;
-            if (typeof jid !== 'string') return null;
             const [userCombined, domain] = jid.split('@');
             const user = userCombined.split(':')[0];
-            if (!domain) return user + '@s.whatsapp.net';
-            return user + '@' + domain;
+            return user + '@' + (domain || 's.whatsapp.net');
         };
+
+        const botJid = clean(sock.user?.id || sock.user?.jid);
+        const isVideo = commandName.toLowerCase().includes('vc') || text.toLowerCase().includes('video');
 
         // Target detection
         let targetJid = null;
-        const argsLower = args.join(' ').toLowerCase();
-
         if (m.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0]) {
             targetJid = m.message.extendedTextMessage.contextInfo.mentionedJid[0];
         } else if (quotedSender) {
@@ -35,78 +34,78 @@ module.exports = {
             if (number) targetJid = number.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
         }
 
+        // SHOW MENU IF NO TARGET (And not in a direct command context with text)
+        if (!targetJid && args.length === 0) {
+            return sock.sendMessage(from, { 
+                text: `📞 *RYU FAKE CALL MENU*\n\n` +
+                      `Pilih target untuk mulai prank:\n` +
+                      `• .fakecall @tag\n` +
+                      `• .fakecall nomor (contoh: 628xxx)\n` +
+                      `• .fakevc (untuk Video Call)\n\n` +
+                      `_Metode: Raw Protocol Ringing + System History Inject._`
+            }, { quoted: m });
+        }
+
         if (!targetJid) targetJid = from;
-
-        const botJid = sock.user?.id || sock.user?.jid;
-        const cleanBotJid = clean(botJid);
-        const isTargetGroup = targetJid.endsWith('@g.us');
-        const isVideo = commandName.toLowerCase().includes('vc') || argsLower.includes('video');
-
-        // Normalize target for signaling (remove device ID)
         const signalingTarget = clean(targetJid);
 
         try {
             const results = {
-                ringingSignal: "not_started",
-                historyLog: "not_started"
+                ringing: "not_started",
+                history: "not_started"
             };
 
-            const callId = Math.floor(100000 + Math.random() * 900000).toString();
+            const callId = Math.random().toString(36).substring(2, 10).toUpperCase();
             
-            // 1. SEND RAW SIGNALING NODE (REAL RINGING)
-            // Mengirim node 'call' dengan status 'offer' secara langsung ke protokol
+            // 1. ATTEMPT REAL RINGING (Status Offer)
             try {
-                await sock.sendNode({
-                    tag: 'call',
-                    attrs: {
-                        to: targetJid,
-                        from: botJid,
-                        id: sock.generateMessageTag(),
-                        t: Math.floor(Date.now() / 1000).toString()
-                    },
-                    content: [
-                        {
-                            tag: 'offer',
-                            attrs: {
-                                'call-id': callId,
-                                'call-creator': botJid
-                            },
-                            content: [
-                                { tag: 'audio', attrs: { enc: 'opus', rate: '16000' }, content: undefined },
-                                { tag: 'net', attrs: { medium: '3' }, content: undefined }
-                            ]
-                        }
-                    ]
-                });
-                results.ringingSignal = "success (node sent)";
-            } catch (e) { results.ringingSignal = "error: " + e.message; }
-
-            // 2. SEND OFFICIAL CALL LOG TO HISTORY
-            try {
-                results.historyLog = await sock.relayMessage(targetJid, {
-                    callLogMesssage: {
-                        isVideo: isVideo,
-                        callOutcome: 1, // MISSED
-                        durationSecs: 0,
-                        callType: 0,
-                        participants: [{ jid: signalingTarget, callOutcome: 1 }]
+                await sock.relayMessage(targetJid, {
+                    call: {
+                        callKey: Buffer.from(Math.random().toString(36).substring(2, 18)),
                     }
                 }, { 
-                    participant: { jid: cleanBotJid, count: 0 },
+                    participant: { jid: botJid, count: 0 },
                     additionalAttributes: {
+                        status: 'offer',
                         category: 'call',
-                        pushname: 'WhatsApp'
+                        pushname: 'WhatsApp System'
+                    }
+                });
+                results.ringing = "success (offer sent)";
+            } catch (e) { results.ringing = "error: " + e.message; }
+
+            await delay(1000);
+
+            // 2. INJECT TO CALL HISTORY (Quoted System Identity)
+            try {
+                results.history = await sock.sendMessage(targetJid, {
+                    text: `📞 *Panggilan ${isVideo ? 'Video' : 'Suara'} Tak Terjawab*`
+                }, {
+                    quoted: {
+                        key: {
+                            remoteJid: '0@s.whatsapp.net',
+                            fromMe: false,
+                            id: 'SYSTEM-' + callId
+                        },
+                        message: {
+                            callLogMesssage: {
+                                isVideo: isVideo,
+                                callOutcome: 1, // MISSED
+                                durationSecs: 0,
+                                callType: 0
+                            }
+                        }
                     }
                 }) || "success";
-            } catch (e) { results.historyLog = "error: " + e.message; }
+            } catch (e) { results.history = "error: " + e.message; }
 
             // Log to console for VPS monitoring
-            console.log(`[FakeCall] Raw Processed for ${targetJid}. Results:`, JSON.stringify(results, null, 2));
+            console.log(`[FakeCall] Executed for ${targetJid}.`, results);
 
-            // Respon murni ke user
-            const pureResponse = JSON.stringify(results, null, 2);
+            // Feedback to user
             await sock.sendMessage(from, { 
-                text: `✅ *Nelpon Prank Processed (Raw Node)*\n\n*Pure Response:*\n\`\`\`json\n${pureResponse}\n\`\`\`` 
+                text: `✅ *Nelpon Prank Processed*\n\n*Target:* @${targetJid.split('@')[0]}\n*Type:* ${isVideo ? 'Video' : 'Voice'}\n\n_Note: Jika tidak berdering, kemungkinan diblokir oleh sistem WhatsApp target._`,
+                mentions: [targetJid]
             }, { quoted: m });
 
         } catch (e) {
