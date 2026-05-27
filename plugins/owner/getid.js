@@ -80,8 +80,9 @@ module.exports = {
                 const meta = await sock.newsletterMetadata("invite", code);
                 if (meta) {
                     newsletterInfo += `• *Newsletter JID:* \`${meta.id}\`\n`;
-                    // Prioritize meta.name from metadata fetch
-                    newsletterInfo += `• *Channel Name:* ${meta.name || meta.subject || 'Unknown'}\n`;
+                    // WhatsApp metadata structure can vary, check common fields
+                    const channelName = meta.name || meta.subject || meta.content?.name || 'Unknown';
+                    newsletterInfo += `• *Channel Name:* ${channelName}\n`;
                     if (meta.subscribers) newsletterInfo += `• *Subscribers:* ${meta.subscribers}\n`;
                 } else {
                     newsletterInfo += `• *Note:* Gagal mengambil metadata otomatis.\n`;
